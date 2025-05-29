@@ -8,7 +8,6 @@ import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 import { axies, CHIMERA_MAX_HEALTH, positions } from '../constants'
 import { abbreviateNumber, getLastHit, getLeaderboard, hashCode, isAdmin, require } from '../libs/utils'
-import { LastHit, Warrior } from '../types'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -23,11 +22,17 @@ const axieDataURI = axies.map((axie) => {
   return 'data:image/png;base64,' + base64Image
 })
 
+const landingBackground = fs.readFileSync(path.join(__dirname, '..', 'assets', 'landing-background.jpg'))
+const base64LandingBackground = Buffer.from(landingBackground)
+
 const victoryOverlay = fs.readFileSync(path.join(__dirname, '..', 'assets', 'victory-overlay.png'))
 const base64VictoryOverlay = Buffer.from(victoryOverlay).toString('base64')
 const victoryOverlayDataURI = 'data:image/png;base64,' + base64VictoryOverlay
 
 const font = font2base64.encodeToDataUrlSync(path.join(__dirname, '..', 'assets', 'Rowdies-Bold.ttf'))
+
+// Global variable to track the current gameloop cleanup function
+let currentGameloopCleanup: (() => void) | null = null
 
 export const config = createCommandConfig({
   description: 'Summon the Chimera',
@@ -42,23 +47,23 @@ export default async (interaction: ChatInputCommandInteraction) => {
   // Defer the reply since image generation might take some time
   await interaction.deferReply()
 
+  // Clean up any existing gameloop before starting a new one
+  if (currentGameloopCleanup) {
+    try {
+      currentGameloopCleanup()
+      logger.info('Cleaned up existing gameloop')
+    } catch (error) {
+      logger.warn('Failed to cleanup existing gameloop:', error)
+    }
+    currentGameloopCleanup = null
+  }
+
   // Reset health monitoring thresholds for the new boss
   await Flashcore.clear()
 
   // Set the boss health
   await Flashcore.set(`chimera:max-health`, CHIMERA_MAX_HEALTH)
   await Flashcore.set(`chimera:current-health`, CHIMERA_MAX_HEALTH)
-
-  const imageBuffer = await generateImage()
-
-  // reduce image size using sharp
-  const resizedImage = await sharp(imageBuffer as Buffer)
-    .resize(1920, 969)
-    .jpeg({
-      quality: 80,
-      progressive: true,
-    })
-    .toBuffer()
 
   await interaction.editReply({
     content: `**Wake up Lunacians! Chimera Appears!**`,
@@ -88,160 +93,212 @@ export default async (interaction: ChatInputCommandInteraction) => {
     ],
     files: [
       {
-        attachment: Buffer.from(resizedImage as Buffer),
+        attachment: base64LandingBackground,
         contentType: 'image/jpeg',
         name: 'chimera.jpeg',
       },
     ],
   })
 
-  await gameloop(interaction)
+  const cleanupGameloop = await gameloop(interaction)
+
+  // Store the cleanup function globally so it can be called if needed
+  currentGameloopCleanup = cleanupGameloop
 }
 
 const gameloop = async (interaction: ChatInputCommandInteraction) => {
   const repliedThresholds = new Set<string>() // Track which thresholds have been triggered
+  let intervalId: NodeJS.Timeout | null = null
+  let isRunning = false
 
-  setInterval(async () => {
-    const currentBossHealth = await Flashcore.get<number>(`chimera:current-health`)
-    const maxBossHealth = await Flashcore.get<number>(`chimera:max-health`)
-    const healthPercentage = (currentBossHealth / maxBossHealth) * 100
-
-    // Determine threshold tier
-    const getThresholdTier = (percentage: number): string => {
-      switch (true) {
-        case percentage <= 0:
-          return 'defeated'
-        case percentage <= 5:
-          return 'critical'
-        case percentage <= 10:
-          return 'danger'
-        case percentage <= 20:
-          return 'low'
-        case percentage <= 30:
-          return 'medium-low'
-        case percentage <= 40:
-          return 'medium'
-        case percentage <= 50:
-          return 'medium-high'
-        case percentage <= 60:
-          return 'high'
-        case percentage <= 70:
-          return 'very-high'
-        case percentage <= 80:
-          return 'near-full'
-        case percentage <= 90:
-          return 'almost-full'
-        default:
-          return 'full'
-      }
+  const cleanup = () => {
+    if (intervalId) {
+      clearInterval(intervalId)
+      intervalId = null
+      isRunning = false
+      logger.info('Gameloop interval cleared')
     }
+    // Clear the global reference
+    if (currentGameloopCleanup === cleanup) {
+      currentGameloopCleanup = null
+    }
+  }
 
-    const currentTier = getThresholdTier(healthPercentage)
+  // Prevent multiple intervals
+  if (isRunning) {
+    logger.warn('Gameloop already running, skipping')
+    return cleanup
+  }
 
-    // Only trigger if we haven't already responded to this tier
-    if (!repliedThresholds.has(currentTier)) {
-      let message = ''
-      let shouldNotify = false
+  isRunning = true
+  logger.info('Starting gameloop interval')
 
-      switch (currentTier) {
-        case 'defeated':
-          message = '💀 **CHIMERA DEFEATED!** The battle is over!'
-          shouldNotify = true
-          break
-        case 'critical':
-          message = '🚨 **CRITICAL!** Chimera is barely alive - finish it!'
-          shouldNotify = true
-          break
-        case 'danger':
-          message = '⚠️ **DANGER ZONE!** Chimera is under 10% health!'
-          shouldNotify = true
-          break
-        case 'low':
-          message = '🔥 Chimera is weakening - under 20% health!'
-          shouldNotify = true
-          break
-        case 'medium-low':
-          message = '💪 Keep pushing! Chimera under 30% health!'
-          shouldNotify = true
-          break
-        case 'medium':
-          message = '⚔️ Half way there! Chimera under 40% health!'
-          shouldNotify = true
-          break
-        case 'medium-high':
-          message = '🎯 Good progress! Chimera under 50% health!'
-          shouldNotify = true
-          break
-        case 'high':
-          message = '💥 Chimera under 60% health - keep attacking!'
-          shouldNotify = true
-          break
-        case 'very-high':
-          message = '🛡️ Chimera under 70% health!'
-          shouldNotify = true
-          break
-        case 'near-full':
-          message = '⚡ First blood! Chimera under 80% health!'
-          shouldNotify = true
-          break
-        case 'almost-full':
-          message = '🎊 Battle begins! Chimera under 90% health!'
-          shouldNotify = true
-          break
-        default:
-          shouldNotify = false
+  intervalId = setInterval(async () => {
+    try {
+      const currentBossHealth = await Flashcore.get<number>(`chimera:current-health`)
+      const maxBossHealth = await Flashcore.get<number>(`chimera:max-health`)
+
+      // If health data is missing or invalid, skip this iteration
+      if (currentBossHealth === null || maxBossHealth === null || maxBossHealth <= 0) {
+        logger.warn('Invalid health data, skipping gameloop iteration')
+        return
       }
 
-      if (shouldNotify) {
-        const imageBuffer = await generateImage(currentTier === 'defeated')
-        const resizedImage = await sharp(imageBuffer as Buffer)
-          .resize(1920, 969)
-          .jpeg({
-            quality: 80,
-            progressive: true,
+      const healthPercentage = (currentBossHealth / maxBossHealth) * 100
+
+      console.log(healthPercentage)
+
+      // Determine threshold tier
+      const getThresholdTier = (percentage: number): string => {
+        switch (true) {
+          case percentage <= 0:
+            return 'defeated'
+          case percentage <= 5:
+            return 'critical'
+          case percentage <= 10:
+            return 'danger'
+          case percentage <= 20:
+            return 'low'
+          case percentage <= 30:
+            return 'medium-low'
+          case percentage <= 40:
+            return 'medium'
+          case percentage <= 50:
+            return 'medium-high'
+          case percentage <= 60:
+            return 'high'
+          case percentage <= 70:
+            return 'very-high'
+          case percentage <= 80:
+            return 'near-full'
+          case percentage <= 90:
+            return 'almost-full'
+          default:
+            return 'full'
+        }
+      }
+
+      const currentTier = getThresholdTier(healthPercentage)
+
+      // Only trigger if we haven't already responded to this tier
+      if (!repliedThresholds.has(currentTier)) {
+        let message = ''
+        let shouldNotify = false
+
+        switch (currentTier) {
+          case 'defeated':
+            message = '💀 **CHIMERA DEFEATED!**'
+            shouldNotify = true
+            break
+          case 'critical':
+            message = '🚨 **CRITICAL!** Chimera is barely alive - finish it!'
+            shouldNotify = true
+            break
+          case 'danger':
+            message = '⚠️ **DANGER ZONE!** Chimera is under 10% health!'
+            shouldNotify = true
+            break
+          case 'low':
+            message = '🔥 Chimera is weakening - under 20% health!'
+            shouldNotify = true
+            break
+          case 'medium-low':
+            message = '💪 Keep pushing! Chimera under 30% health!'
+            shouldNotify = true
+            break
+          case 'medium':
+            message = '⚔️ Half way there! Chimera under 40% health!'
+            shouldNotify = true
+            break
+          case 'medium-high':
+            message = '🎯 Good progress! Chimera under 50% health!'
+            shouldNotify = true
+            break
+          case 'high':
+            message = '💥 Chimera under 60% health - keep attacking!'
+            shouldNotify = true
+            break
+          case 'very-high':
+            message = '🛡️ Chimera under 70% health!'
+            shouldNotify = true
+            break
+          case 'near-full':
+            message = '⚡ First blood! Chimera under 80% health!'
+            shouldNotify = true
+            break
+          case 'almost-full':
+            message = '🎊 Battle begins! Chimera under 90% health!'
+            shouldNotify = true
+            break
+          default:
+            shouldNotify = false
+        }
+
+        if (shouldNotify) {
+          console.log('generating image')
+          const imageBuffer = await generateImage(currentTier === 'defeated')
+          const resizedImage = await sharp(imageBuffer as Buffer)
+            .resize(1920, 969)
+            .jpeg({
+              quality: 80,
+              progressive: true,
+            })
+            .toBuffer()
+
+          const lastHit = await getLastHit()
+          const leaderboard = await getLeaderboard()
+
+          await interaction.followUp({
+            content: message,
+            embeds:
+              currentTier === 'defeated'
+                ? [
+                    {
+                      color: Colors.DarkGreen,
+                      title: 'Congrats Warriors!',
+                      description: 'The battle is over!',
+                      fields: [
+                        {
+                          name: '🏆 Leaderboard',
+                          value: leaderboard
+                            .map((warrior, index) => `#${index + 1} <@${warrior.id}> - 💥 ${abbreviateNumber(warrior.totalDamage, 2)}`)
+                            .join('\n'),
+                        },
+                        {
+                          name: 'Last Hit',
+                          value: `<@${lastHit?.userId}>`,
+                        },
+                      ],
+                    },
+                  ]
+                : [],
+            files: [
+              {
+                attachment: Buffer.from(resizedImage as Buffer),
+                contentType: 'image/jpeg',
+                name: 'chimera.jpeg',
+              },
+            ],
           })
-          .toBuffer()
 
-        const lastHit = await getLastHit()
-        const leaderboard = await getLeaderboard()
+          repliedThresholds.add(currentTier)
 
-        await interaction.followUp({
-          content: message,
-          embeds:
-            currentTier === 'defeated'
-              ? [
-                  {
-                    color: Colors.DarkGreen,
-                    title: 'Congrats Warriors!',
-                    description: 'The battle is over!',
-                    fields: [
-                      {
-                        name: '🏆 Leaderboard',
-                        value: leaderboard
-                          .map((warrior, index) => `#${index + 1} <@${warrior.id}> - 💥 ${abbreviateNumber(warrior.totalDamage, 2)}`)
-                          .join('\n'),
-                      },
-                      {
-                        name: 'Last Hit',
-                        value: `<@${lastHit?.userId}>`,
-                      },
-                    ],
-                  },
-                ]
-              : undefined,
-          files: [
-            {
-              attachment: Buffer.from(resizedImage as Buffer),
-              contentType: 'image/jpeg',
-              name: 'chimera.jpeg',
-            },
-          ],
-        })
-
-        repliedThresholds.add(currentTier)
+          // Clean up the interval when the chimera is defeated
+          if (currentTier === 'defeated') {
+            cleanup()
+            return
+          }
+        }
       }
+    } catch (error) {
+      logger.error('Error in gameloop interval:', error)
+      // Don't cleanup on error - let it retry
     }
   }, 3000)
+
+  // Store the cleanup function to allow external cleanup if needed
+  // You could store this in Flashcore or return it if needed
+  return cleanup
 }
 
 const generateImage = async (renderVictoryOverlay: boolean = false) => {

@@ -69,12 +69,16 @@ export default async (interaction: ChatInputCommandInteraction, options: Command
 
   const myRank = leaderboard.findIndex((warrior) => warrior.id === interaction.user.id)
 
+  const chimeraHealth = await Flashcore.get<number>(`chimera:current-health`)
+  const chimeraMaxHealth = await Flashcore.get<number>(`chimera:max-health`)
+  const chimeraHealthPercentage = (chimeraHealth / chimeraMaxHealth) * 100
+
   return {
     embeds: [
       {
         color: damage.color,
         description: `${interaction.user.displayName} used \`${card}\` card hit the Chimera with ${damage.type} damage!`,
-        image: {
+        thumbnail: {
           url: getCardImage(card),
         },
         fields: [
@@ -82,6 +86,7 @@ export default async (interaction: ChatInputCommandInteraction, options: Command
             name: '🏆 Rank',
             value: `${myRank + 1}`,
           },
+
           {
             name: '💥 Damage Dealt',
             value: `${abbreviateNumber(trueDamage, 2)}`,
@@ -89,8 +94,12 @@ export default async (interaction: ChatInputCommandInteraction, options: Command
           },
           {
             name: '💥 Total Damage',
-            value: `${abbreviateNumber(me?.damage.reduce((acc, curr) => acc + curr.damage, 0) || 0, 2)}`,
+            value: `${abbreviateNumber(me?.damage.reduce((acc, curr) => acc + curr.damage, 0) || trueDamage, 2)}`,
             inline: true,
+          },
+          {
+            name: '❤️‍🩹 Chimera Health Remaining',
+            value: `${chimeraHealthPercentage.toFixed(2)}%`,
           },
         ],
         footer: {
@@ -102,5 +111,3 @@ export default async (interaction: ChatInputCommandInteraction, options: Command
     ],
   }
 }
-
-// https://storage.googleapis.com/origin-production/assets/card/dawn-tail-03-00.png

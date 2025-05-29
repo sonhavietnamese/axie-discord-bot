@@ -6,7 +6,7 @@ export const CHIMERA_MAX_HEALTH = 10e6
 
 export const DAMAGE = [
   {
-    type: 'normal',
+    type: 'tiny',
     damage: [0, 10e3],
     color: Colors.Blurple,
   },
@@ -103,12 +103,10 @@ export const positions = [
 ]
 
 export const CARDS: Record<string, string[]> = {
-  normal: ['Serious', 'Risky Fish', 'Cute Bunny', 'Casterpillars', 'Buba Brush'],
+  tiny: ['Serious', 'Risky Fish', 'Cute Bunny', 'Casterpillars', 'Buba Brush'],
   super: ['Forest Hero', 'Post Fight', 'Lam', 'Beech', 'Anemone'],
   critical: ['Tiny Fan', 'Koi', 'Shiba', 'Little Branch', 'Sandal'],
 }
-
-// https://storage.googleapis.com/origin-production/assets/card/dawn-tail-03-00.png
 
 export const CARD_IMAGE_LOOKUP: Record<string, string> = {
   Serious: 'plant-mouth-02-00',
