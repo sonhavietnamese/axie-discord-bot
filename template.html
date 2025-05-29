@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Rowdies:wght@400&display=swap" rel="stylesheet" />
+
+    <style>
+      body {
+        width: 1920px;
+        height: 969px;
+        background-color: #000;
+        font-family: 'Rowdies', sans-serif;
+      }
+
+      .scene {
+        width: 100%;
+        height: 100%;
+        position: relative;
+      }
+
+      .background {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .leaderboard {
+        width: 414px;
+        height: 351px;
+        position: absolute;
+        top: 22px;
+        right: 34px;
+        padding-top: 50px;
+      }
+
+      .leaderboard-item {
+        display: grid;
+        grid-template-columns: 72px 1fr 100px;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 32px 8px 20px;
+      }
+
+      .leaderboard-item-rank {
+        font-size: 24px;
+        font-weight: 400;
+        color: #69473b;
+        text-align: right;
+      }
+
+      .leaderboard-item-name {
+        font-size: 24px;
+        font-weight: 400;
+        color: #69473b;
+      }
+
+      .leaderboard-item-score {
+        font-size: 24px;
+        font-weight: 400;
+        color: #dd7312;
+        text-align: right;
+      }
+
+      .chimera-healthbar {
+        width: 575px;
+        height: 32px;
+        background-color: #461e0d;
+        position: absolute;
+        top: 110px;
+        left: 683px;
+        outline: 8px solid #7d3013;
+        border-radius: 12px;
+      }
+
+      .chimera-healthbar-inner {
+        width: 80%;
+        height: 100%;
+        background-color: #dd7312;
+        border-radius: 12px;
+        position: relative;
+      }
+
+      .chimera-healthbar-text {
+        font-size: 24px;
+        color: #fff;
+        position: absolute;
+        top: 0px;
+        left: 50%;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="scene">
+      <img src="./src/assets/background.jpg" class="background" />
+
+      <div class="chimera-healthbar">
+        <div class="chimera-healthbar-inner">
+          <div class="chimera-healthbar-text">90/1,23m</div>
+        </div>
+      </div>
+
+      <div class="leaderboard">
+        <div class="leaderboard-item">
+          <div class="leaderboard-item-rank">#1 —</div>
+          <div class="leaderboard-item-name">Chimera</div>
+          <div class="leaderboard-item-score">100m</div>
+        </div>
+        <div class="leaderboard-item">
+          <div class="leaderboard-item-rank">#2 —</div>
+          <div class="leaderboard-item-name">Chimera</div>
+          <div class="leaderboard-item-score">100</div>
+        </div>
+        <div class="leaderboard-item">
+          <div class="leaderboard-item-rank">#3 —</div>
+          <div class="leaderboard-item-name">Chimera</div>
+          <div class="leaderboard-item-score">100</div>
+        </div>
+        <div class="leaderboard-item">
+          <div class="leaderboard-item-rank">#4 —</div>
+          <div class="leaderboard-item-name">Chimera</div>
+          <div class="leaderboard-item-score">100</div>
+        </div>
+        <div class="leaderboard-item">
+          <div class="leaderboard-item-rank">#5 —</div>
+          <div class="leaderboard-item-name">Chimera</div>
+          <div class="leaderboard-item-score">100</div>
+        </div>
+        <div class="leaderboard-item">
+          <div class="leaderboard-item-rank">#6 —</div>
+          <div class="leaderboard-item-name">Chimera</div>
+          <div class="leaderboard-item-score">100</div>
+        </div>
+      </div>
+    </section>
+  </body>
+</html>
