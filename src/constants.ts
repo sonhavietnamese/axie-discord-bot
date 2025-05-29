@@ -101,3 +101,29 @@ export const positions = [
     direction: -1,
   },
 ]
+
+export const CARDS: Record<string, string[]> = {
+  normal: ['Serious', 'Risky Fish', 'Cute Bunny', 'Casterpillars', 'Buba Brush'],
+  super: ['Forest Hero', 'Post Fight', 'Lam', 'Beech', 'Anemone'],
+  critical: ['Tiny Fan', 'Koi', 'Shiba', 'Little Branch', 'Sandal'],
+}
+
+// https://storage.googleapis.com/origin-production/assets/card/dawn-tail-03-00.png
+
+export const CARD_IMAGE_LOOKUP: Record<string, string> = {
+  Serious: 'plant-mouth-02-00',
+  'Risky Fish': 'aquatic-mouth-08-00',
+  'Cute Bunny': 'bug-mouth-08-00',
+  Casterpillars: 'bug-horn-06-00',
+  'Buba Brush': 'beast-tail-03-00',
+  'Forest Hero': 'plant-back-03-00',
+  'Post Fight': 'bird-tail-12-00',
+  Lam: 'aquatic-mouth-02-00',
+  Beech: 'plant-horn-04-00',
+  Anemone: 'aquatic-back-10-00',
+  'Tiny Fan': 'aquatic-ears-04-00',
+  Koi: 'aquatic-tail-02-00',
+  Shiba: 'beast-tail-06-00',
+  'Little Branch': 'beast-horn-02-00',
+  Sandal: 'bug-back-08-00',
+}

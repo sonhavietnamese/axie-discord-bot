@@ -7,8 +7,8 @@ import { createCommandConfig, Flashcore, logger } from 'robo.js'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 import { axies, CHIMERA_MAX_HEALTH, positions } from '../constants'
-import { abbreviateNumber, hashCode, isAdmin, require } from '../libs/utils'
-import { Warrior } from '../types'
+import { abbreviateNumber, getLastHit, getLeaderboard, hashCode, isAdmin, require } from '../libs/utils'
+import { LastHit, Warrior } from '../types'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -22,6 +22,10 @@ const axieDataURI = axies.map((axie) => {
   const base64Image = Buffer.from(image).toString('base64')
   return 'data:image/png;base64,' + base64Image
 })
+
+const victoryOverlay = fs.readFileSync(path.join(__dirname, '..', 'assets', 'victory-overlay.png'))
+const base64VictoryOverlay = Buffer.from(victoryOverlay).toString('base64')
+const victoryOverlayDataURI = 'data:image/png;base64,' + base64VictoryOverlay
 
 const font = font2base64.encodeToDataUrlSync(path.join(__dirname, '..', 'assets', 'Rowdies-Bold.ttf'))
 
@@ -57,13 +61,29 @@ export default async (interaction: ChatInputCommandInteraction) => {
     .toBuffer()
 
   await interaction.editReply({
-    content: 'Chimera summoned!',
+    content: `**Wake up Lunacians! Chimera Appears!**`,
     embeds: [
       {
-        color: Colors.Blurple,
-        title: 'Chimera summoned!',
-        description:
-          'Use command `/hit chimera` to deal damage to the Chimera!\n\n📊 **Auto-monitoring enabled** - Live status will be posted below.',
+        color: Colors.DarkGreen,
+        title: 'Beat the Chimera',
+        description: 'Use command `/hit chimera` to deal damage.',
+        fields: [
+          {
+            name: '❤️ Health',
+            value: `${Number(CHIMERA_MAX_HEALTH).toLocaleString()}`,
+            inline: true,
+          },
+          {
+            name: '🕑 Time Left',
+            value: `10:00`,
+            inline: true,
+          },
+          {
+            name: '👨‍🦲 BALD',
+            value: `No`,
+            inline: true,
+          },
+        ],
       },
     ],
     files: [
@@ -173,7 +193,7 @@ const gameloop = async (interaction: ChatInputCommandInteraction) => {
       }
 
       if (shouldNotify) {
-        const imageBuffer = await generateImage()
+        const imageBuffer = await generateImage(currentTier === 'defeated')
         const resizedImage = await sharp(imageBuffer as Buffer)
           .resize(1920, 969)
           .jpeg({
@@ -182,8 +202,33 @@ const gameloop = async (interaction: ChatInputCommandInteraction) => {
           })
           .toBuffer()
 
+        const lastHit = await getLastHit()
+        const leaderboard = await getLeaderboard()
+
         await interaction.followUp({
           content: message,
+          embeds:
+            currentTier === 'defeated'
+              ? [
+                  {
+                    color: Colors.DarkGreen,
+                    title: 'Congrats Warriors!',
+                    description: 'The battle is over!',
+                    fields: [
+                      {
+                        name: '🏆 Leaderboard',
+                        value: leaderboard
+                          .map((warrior, index) => `#${index + 1} <@${warrior.id}> - 💥 ${abbreviateNumber(warrior.totalDamage, 2)}`)
+                          .join('\n'),
+                      },
+                      {
+                        name: 'Last Hit',
+                        value: `<@${lastHit?.userId}>`,
+                      },
+                    ],
+                  },
+                ]
+              : undefined,
           files: [
             {
               attachment: Buffer.from(resizedImage as Buffer),
@@ -199,7 +244,7 @@ const gameloop = async (interaction: ChatInputCommandInteraction) => {
   }, 3000)
 }
 
-const generateImage = async () => {
+const generateImage = async (renderVictoryOverlay: boolean = false) => {
   const currentBossHealth = await Flashcore.get<number>('chimera:current-health')
   const maxBossHealth = await Flashcore.get<number>('chimera:max-health')
 
@@ -219,15 +264,7 @@ const generateImage = async () => {
     healthBarColor = '#ff8c00' // Dark orange
   }
 
-  const warriors = (await Flashcore.get<Warrior[]>('warriors')) || []
-
-  const leaderboard = warriors
-    .map((warrior) => ({
-      id: warrior.id,
-      name: warrior.name,
-      totalDamage: warrior.damage.reduce((acc, curr) => acc + curr.damage, 0),
-    }))
-    .sort((a, b) => b.totalDamage - a.totalDamage)
+  const leaderboard = await getLeaderboard()
 
   return await nodeHtmlToImage({
     html: `
@@ -348,62 +385,114 @@ scene {
 .left {
   transform: scaleX(1);
 }
-
+.victory-overlay {
+  position: fixed;
+  top: -1px;
+  left: -1px;
+  width: 1920px;
+  height: 969px;
+  z-index: 1000;
+}
+.victory-overlay-image {
+  width: 1920px;
+  height: 969px;
+}
      </style> 
         <body>
           <section class="scene">
-      <img src={{{imageSource}}} class="background" />
+            <img src={{{imageSource}}} class="background" />
 
-      <div class="axies">
-        ${leaderboard
-          .slice(0, 10)
-          .map(
-            (warrior, index) => `
-          <div class="axie"  
-          style="
-            position: absolute;
-            z-index: ${index + 1};
-            left: ${positions[index].x}px; 
-            top: ${positions[index].y}px; 
-            width: ${positions[index].width}px; 
-            height: ${positions[index].height}px;
-          
-            ">
-              <img src="${axieDataURI[hashCode(warrior.id) % axieDataURI.length]}" class="axie-image" style="transform: scaleX(${
-              positions[index].direction
-            })" />
-              <span class="player-name">${warrior.name}</span>
-        </div>
-        `,
-          )
-          .join('')}
-      </div>
+            <div class="axies">
+              ${leaderboard
+                .slice(0, 10)
+                .map(
+                  (warrior, index) => `
+                <div class="axie"  
+                style="
+                  position: absolute;
+                  z-index: ${index + 1};
+                  left: ${positions[index].x}px; 
+                  top: ${positions[index].y}px; 
+                  width: ${positions[index].width}px; 
+                  height: ${positions[index].height}px;
+                
+                  ">
+                    <img src="${axieDataURI[hashCode(warrior.id) % axieDataURI.length]}" class="axie-image" style="transform: scaleX(${
+                    positions[index].direction
+                  })" />
+                    <span class="player-name">${warrior.name}</span>
+              </div>
+              `,
+                )
+                .join('')}
+            </div>
+
+            <div class="leaderboard">
+              ${leaderboard
+                .slice(0, 10)
+                .map(
+                  (warrior, index) => `
+                    <div class="leaderboard-item">
+                      <div class="leaderboard-item-rank">#${index + 1}</div>
+                      <div class="leaderboard-item-name">${warrior.name}</div>
+                      <div class="leaderboard-item-score">${abbreviateNumber(warrior.totalDamage, 2)}</div>
+                    </div>
+                  `,
+                )
+                .join('')}
+            </div>
+            
+
+            <div class="chimera-healthbar">
+              <div class="chimera-healthbar-inner">
+                
+              </div>
+              <div class="chimera-healthbar-text">{{{currentBossHealth}}} / {{{currentBossMaxHealth}}}</div>
+            </div>
+
+            ${
+              renderVictoryOverlay
+                ? `
+            <div class="victory-overlay">
+              <img src="{{{victoryOverlayDataURI}}}" class="victory-overlay-image" />
+              
 
 
-<div class="leaderboard">
-${leaderboard
-  .slice(0, 10)
-  .map(
-    (warrior, index) => `
-  <div class="leaderboard-item">
-  <div class="leaderboard-item-rank">#${index + 1}</div>
-  <div class="leaderboard-item-name">${warrior.name}</div>
-  <div class="leaderboard-item-score">${abbreviateNumber(warrior.totalDamage, 2)}</div>
-  </div>
-  `,
-  )
-  .join('')}
-</div>
-
-      <div class="chimera-healthbar">
-        <div class="chimera-healthbar-inner">
-          
-        </div>
-        <div class="chimera-healthbar-text">{{{currentBossHealth}}} / {{{currentBossMaxHealth}}}</div>
-      </div>
-
-      
-    </section>
+              <div 
+                style="
+                  position: fixed;
+                  top: 280px;
+                  left: 715px;
+                  z-index: 1001;
+                  width: 480px;
+                  height: 540px;
+                  padding-top: 90px;
+                "
+              >
+              ${leaderboard
+                .slice(0, 10)
+                .map(
+                  (warrior, index) => `
+                    <div style="
+                      display: grid;
+                      grid-template-columns: 50px 1fr 140px;
+                      align-items: center;
+                      gap: 24px;
+                      padding: 6px 32px 6px 16px;
+                    ">
+                      <div class="leaderboard-item-rank">#${index + 1}</div>
+                      <div class="leaderboard-item-name">${warrior.name}</div>
+                      <div class="leaderboard-item-score">${abbreviateNumber(warrior.totalDamage, 2)}</div>
+                    </div>
+                  `,
+                )
+                .join('')}
+            </div>
+            </div>
+            `
+                : ''
+            }
+          </section>
         </body>
       </html>`,
     content: {
@@ -411,9 +500,9 @@ ${leaderboard
       font,
       currentBossHealth: abbreviateNumber(currentBossHealth, 2),
       currentBossMaxHealth: abbreviateNumber(maxBossHealth, 2),
-
       healthBarColor,
       healthBarWidth,
+      victoryOverlayDataURI,
     },
   })
 }

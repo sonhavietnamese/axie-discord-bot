@@ -1,6 +1,9 @@
 import { type Player } from '../core/players'
 import { ADMINS } from '../core/admin'
 import { ChatInputCommandInteraction } from 'discord.js'
+import { Flashcore } from 'robo.js'
+import { LastHit, Warrior } from '../types'
+import { CARD_IMAGE_LOOKUP } from '../constants'
 
 export function matchUpPlayers(players: Player[]): Player[][] {
   const matchUps: Player[][] = []
@@ -75,4 +78,35 @@ export function hashCode(name: string) {
   }
 
   return Math.abs(hash)
+}
+
+export async function getLastHit(): Promise<LastHit | null> {
+  return await Flashcore.get<LastHit>('chimera:last-hit')
+}
+
+export function formatLastHit(lastHit: LastHit): string {
+  const timeAgo = Math.floor((Date.now() - lastHit.timestamp) / 1000)
+  const timeFormat = timeAgo < 60 ? `${timeAgo}s ago` : timeAgo < 3600 ? `${Math.floor(timeAgo / 60)}m ago` : `${Math.floor(timeAgo / 3600)}h ago`
+
+  return `**${lastHit.userName}** dealt **${abbreviateNumber(lastHit.damage, 2)}** ${lastHit.damageType} damage using **${
+    lastHit.card
+  }** (${timeFormat})`
+}
+
+export async function getLeaderboard(): Promise<{ id: string; name: string; totalDamage: number }[]> {
+  const warriors = (await Flashcore.get<Warrior[]>('warriors')) || []
+
+  const leaderboard: { id: string; name: string; totalDamage: number }[] = warriors
+    .map((warrior) => ({
+      id: warrior.id,
+      name: warrior.name,
+      totalDamage: warrior.damage.reduce((acc, curr) => acc + curr.damage, 0),
+    }))
+    .sort((a, b) => b.totalDamage - a.totalDamage)
+
+  return leaderboard
+}
+
+export function getCardImage(card: string) {
+  return `https://storage.googleapis.com/origin-production/assets/card/${CARD_IMAGE_LOOKUP[card]}.png`
 }

@@ -1,12 +1,12 @@
 import { Colors, type ChatInputCommandInteraction } from 'discord.js'
 import type { CommandOptions, CommandResult } from 'robo.js'
 import { createCommandConfig, Flashcore } from 'robo.js'
-import { DAMAGE } from '../../constants'
-import { abbreviateNumber } from '../../libs/utils'
-import { Warrior } from '../../types'
+import { CARDS, DAMAGE } from '../../constants'
+import { abbreviateNumber, getCardImage } from '../../libs/utils'
+import { LastHit, Warrior } from '../../types'
 
 export const config = createCommandConfig({
-  description: 'Unlock the hidden prowess of someone',
+  description: 'Deal random damage to the Chimera',
   contexts: ['Guild'],
   integrationTypes: ['GuildInstall', 'UserInstall'],
 } as const)
@@ -14,7 +14,6 @@ export const config = createCommandConfig({
 export default async (interaction: ChatInputCommandInteraction, options: CommandOptions<typeof config>): Promise<CommandResult> => {
   const currentBossHealth = await Flashcore.get<number>(`chimera:current-health`)
 
-  // Check if boss is already dead
   if (currentBossHealth <= 0) {
     return {
       embeds: [
@@ -24,19 +23,31 @@ export default async (interaction: ChatInputCommandInteraction, options: Command
           description: 'The Chimera has already been defeated! Wait for a new one to be summoned.',
         },
       ],
+      ephemeral: true,
     }
   }
 
   const damage = DAMAGE[Math.floor(Math.random() * DAMAGE.length)]
   const trueDamage = Math.floor(Math.random() * (damage.damage[1] - damage.damage[0] + 1)) + damage.damage[0]
+  const card = CARDS[damage.type][Math.floor(Math.random() * CARDS[damage.type].length)]
 
-  const maxBossHealth = await Flashcore.get<number>(`chimera:max-health`)
-
-  // Calculate new health, but don't let it go below 0
   const newHealth = Math.max(0, currentBossHealth - trueDamage)
 
-  // Update health and damage tracking
   await Flashcore.set(`chimera:current-health`, newHealth)
+
+  // Store last hit information
+  const lastHit: LastHit = {
+    userId: interaction.user.id,
+    userName: interaction.user.displayName,
+    damage: trueDamage,
+    damageType: damage.type,
+    card: card,
+    timestamp: Date.now(),
+    healthBefore: currentBossHealth,
+    healthAfter: newHealth,
+  }
+
+  await Flashcore.set('chimera:last-hit', lastHit)
 
   const warriors = (await Flashcore.get<Warrior[]>('warriors')) || []
 
@@ -50,40 +61,46 @@ export default async (interaction: ChatInputCommandInteraction, options: Command
 
   await Flashcore.set('warriors', warriors)
 
-  // Debug logging
   console.log(`Health update: ${currentBossHealth} -> ${newHealth} (damage: ${trueDamage})`)
 
-  // Return simple damage feedback - no images needed here
-  const healthPercentage = (newHealth / maxBossHealth) * 100
+  const leaderboard = warriors.sort(
+    (a, b) => b.damage.reduce((acc, curr) => acc + curr.damage, 0) - a.damage.reduce((acc, curr) => acc + curr.damage, 0),
+  )
+
+  const myRank = leaderboard.findIndex((warrior) => warrior.id === interaction.user.id)
 
   return {
     embeds: [
       {
         color: damage.color,
-        description: `${interaction.user.displayName} hit the Chimera with ${damage.type} damage!`,
+        description: `${interaction.user.displayName} used \`${card}\` card hit the Chimera with ${damage.type} damage!`,
+        image: {
+          url: getCardImage(card),
+        },
         fields: [
+          {
+            name: '🏆 Rank',
+            value: `${myRank + 1}`,
+          },
           {
             name: '💥 Damage Dealt',
             value: `${abbreviateNumber(trueDamage, 2)}`,
             inline: true,
           },
           {
-            name: '❤️ Remaining Health',
-            value: `${healthPercentage.toFixed(1)}%`,
-            inline: true,
-          },
-          {
-            name: '📊 Live Updates',
-            value: 'Check below for real-time status',
+            name: '💥 Total Damage',
+            value: `${abbreviateNumber(me?.damage.reduce((acc, curr) => acc + curr.damage, 0) || 0, 2)}`,
             inline: true,
           },
         ],
         footer: {
           icon_url: interaction.user.displayAvatarURL(),
-          text: `Hit by @${interaction.user.tag}`,
+          text: ``,
         },
         title: `${abbreviateNumber(trueDamage, 2)} damage dealt!`,
       },
     ],
   }
 }
+
+// https://storage.googleapis.com/origin-production/assets/card/dawn-tail-03-00.png
