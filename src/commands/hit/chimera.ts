@@ -74,6 +74,7 @@ export default async (interaction: ChatInputCommandInteraction, options: Command
   const chimeraHealthPercentage = (chimeraHealth / chimeraMaxHealth) * 100
 
   return {
+    ephemeral: true,
     embeds: [
       {
         color: damage.color,

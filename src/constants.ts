@@ -2,7 +2,7 @@ import { Colors } from 'discord.js'
 
 export const ADMIN_DISCORD_IDS = ['852110112264945704']
 
-export const CHIMERA_MAX_HEALTH = 10e6
+export const CHIMERA_MAX_HEALTH = 10e7
 
 export const DAMAGE = [
   {
