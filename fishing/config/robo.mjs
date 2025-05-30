@@ -4,9 +4,11 @@
  * @type {import('robo.js').Config}
  **/
 export default {
-	clientOptions: {
-		intents: ['Guilds', 'GuildMessages', 'MessageContent']
-	},
-	plugins: [],
-	type: 'robo'
+  clientOptions: {
+    intents: ['Guilds', 'GuildMessages', 'MessageContent', 'GuildMessageReactions', 'GuildMembers'],
+  },
+  plugins: [],
+  type: 'robo',
 }
+
+687195088960
