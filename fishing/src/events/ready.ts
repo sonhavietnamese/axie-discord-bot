@@ -1,6 +1,5 @@
 import { ActivityType } from 'discord.js'
-import { client, logger } from 'robo.js'
-import { BossHealthMonitor } from '../libs/bossHealthMonitor'
+import { client } from 'robo.js'
 
 /**
  * This event handler will be called when your Robo is logged in and ready.
@@ -10,15 +9,9 @@ import { BossHealthMonitor } from '../libs/bossHealthMonitor'
  * https://robojs.dev/discord-bots/events
  */
 export default () => {
-  // Clean up any existing monitoring from previous sessions
-  BossHealthMonitor.stopAutoMonitoring()
-
-  logger.info('Discord bot is ready!')
-  logger.info('Chimera boss system initialized')
-
   client.user?.setActivity({
-    name: '🔥 Chimera',
+    name: '✨ Built with Robo.js',
     type: ActivityType.Custom,
-    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    url: 'https://robojs.dev',
   })
 }
