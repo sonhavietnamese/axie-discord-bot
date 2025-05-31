@@ -15,3 +15,13 @@ Flow:
 11 Check if user has already reacted to the message with the same emoji and same order
 12 Has a button to confirm the fishing
 13 If user confirm the fishing, bot will check if the user has already reacted to the message with the same emoji and same order, then random the fish
+
+
+Admin:
+- /fishing start
+- /fishing stop
+- /fishing log
+
+Player:
+- /cast
+- /basket

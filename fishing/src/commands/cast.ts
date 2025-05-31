@@ -1,5 +1,6 @@
 import { ButtonStyle, ChatInputCommandInteraction, ComponentType } from 'discord.js'
 import { createCommandConfig, logger } from 'robo.js'
+import { fishingEventManager } from '../core/fishingEvent'
 
 export const config = createCommandConfig({
   description: 'Cast your line and catch a fish',
@@ -36,13 +37,45 @@ const createButtonsWithDistraction = () => {
 export default async (interaction: ChatInputCommandInteraction) => {
   logger.info(`Cast command used by ${interaction.user}`)
 
+  if (!interaction.guildId) {
+    await interaction.reply({
+      content: '🚫 This command can only be used in a server!',
+      ephemeral: true,
+    })
+    return
+  }
+
+  // Check if there's an active fishing event
+  if (!fishingEventManager.isEventActive(interaction.guildId)) {
+    await interaction.reply({
+      content: '🚫 **No active fishing event!**\n\n' + 'Wait for someone to start a fishing event with `/start fishing` or start one yourself!',
+      ephemeral: true,
+    })
+    return
+  }
+
+  // Check if the user can fish (is a participant)
+  if (!fishingEventManager.canUserFish(interaction.guildId, interaction.user.id)) {
+    const timeRemaining = fishingEventManager.getFormattedTimeRemaining(interaction.guildId)
+    await interaction.reply({
+      content:
+        "🚫 **You haven't joined the fishing event!**\n\n" +
+        'React with 🎣 on the event announcement message to join the fishing event.\n' +
+        `⏰ Time remaining: ${timeRemaining}`,
+      ephemeral: true,
+    })
+    return
+  }
+
   // Generate random numbers for this game
   const targetNumbers = generateRandomNumbers(3)
   let currentIndex = 0
 
+  const timeRemaining = fishingEventManager.getFormattedTimeRemaining(interaction.guildId)
+
   // Create the fishing message
   const fishingMessage = await interaction.reply({
-    content: `🎣 Cast your line and catch a fish!\n\n**Press the number:** ${targetNumbers[currentIndex]}`,
+    content: `🎣 Cast your line and catch a fish!\n\n**Press the number:** ${targetNumbers[currentIndex]}\n⏰ Event time remaining: ${timeRemaining}`,
     components: [
       {
         type: ComponentType.ActionRow,
@@ -60,6 +93,16 @@ export default async (interaction: ChatInputCommandInteraction) => {
   })
 
   collector.on('collect', async (buttonInteraction) => {
+    // Check if the fishing event is still active during the game
+    if (!fishingEventManager.canUserFish(interaction.guildId!, interaction.user.id)) {
+      await buttonInteraction.update({
+        content: '🚫 **Fishing event has ended!** Your fishing attempt was cancelled.',
+        components: [],
+      })
+      collector.stop('event_ended')
+      return
+    }
+
     // Extract the number from the button custom_id
     const pressedNumber = parseInt(buttonInteraction.customId.split('_')[1])
 
@@ -86,8 +129,9 @@ export default async (interaction: ChatInputCommandInteraction) => {
         collector.stop('completed')
       } else {
         // Move to next number
+        const currentTimeRemaining = fishingEventManager.getFormattedTimeRemaining(interaction.guildId!)
         await buttonInteraction.update({
-          content: `🎣 Cast your line and catch a fish!\n\n✅ Progress: ${currentIndex}/${targetNumbers.length}\n**Press the number:** ${targetNumbers[currentIndex]}`,
+          content: `🎣 Cast your line and catch a fish!\n\n✅ Progress: ${currentIndex}/${targetNumbers.length}\n**Press the number:** ${targetNumbers[currentIndex]}\n⏰ Event time remaining: ${currentTimeRemaining}`,
           components: [
             {
               type: ComponentType.ActionRow,
