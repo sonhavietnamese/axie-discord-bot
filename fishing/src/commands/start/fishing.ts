@@ -1,5 +1,5 @@
-import { createCommandConfig, logger } from 'robo.js'
-import type { ChatInputCommandInteraction, TextChannel, GuildTextBasedChannel } from 'discord.js'
+import { createCommandConfig, logger, Flashcore } from 'robo.js'
+import type { ChatInputCommandInteraction, TextChannel, GuildTextBasedChannel, User } from 'discord.js'
 
 export const config = createCommandConfig({
   description: 'Start the fishing event',
@@ -47,7 +47,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
         if (Date.now() - startTime > maxDuration) {
           clearInterval(intervalId)
           await interaction.followUp({
-            content: '🎣 **Fishing event has ended!** Thanks to all participants!',
+            content: 'START!!!! now you can use `/fishing` to start fishing',
           })
           return
         }

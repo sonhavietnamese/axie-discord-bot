@@ -14,8 +14,8 @@
     "upgrade": "sage upgrade"
   },
   "dependencies": {
-    "discord.js": "14.16.2",
-    "robo.js": "^0.10.28"
+    "discord.js": "^14.19.3",
+    "robo.js": "^0.10.30"
   },
   "devDependencies": {
     "@swc/core": "^1.7.26",
