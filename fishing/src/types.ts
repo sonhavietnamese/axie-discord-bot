@@ -17,3 +17,16 @@ export type LastHit = {
   healthBefore: number
   healthAfter: number
 }
+
+export enum FishingEventStatus {
+  ACTIVE = 'active',
+  PENDING = 'pending',
+  ENDED = 'ended',
+}
+
+export type FishingEventHappening = {
+  channelId: string
+  startTime: number
+  endTime: number
+  status: FishingEventStatus
+}

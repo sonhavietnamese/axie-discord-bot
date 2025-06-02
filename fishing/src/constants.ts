@@ -125,3 +125,9 @@ export const CARD_IMAGE_LOOKUP: Record<string, string> = {
   'Little Branch': 'beast-horn-02-00',
   Sandal: 'bug-back-08-00',
 }
+
+export enum STORAGE_KEYS {
+  HAPPENING = 'happening',
+}
+
+export const EVENT_DURATION = 10 * 60 * 1000 // 10 minutes
