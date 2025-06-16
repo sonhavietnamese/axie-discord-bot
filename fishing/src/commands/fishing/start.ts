@@ -3,6 +3,7 @@ import { createCommandConfig, Flashcore, logger } from 'robo.js'
 import { EVENT_DURATION, STORAGE_KEYS } from '../../constants'
 import { isAdmin, require } from '../../libs/utils'
 import { FishingEventHappening, FishingEventStatus } from '../../types'
+import { METADATA } from '../../metadata'
 
 export const config = createCommandConfig({
   description: 'Start the fishing event',
@@ -29,12 +30,15 @@ export default async (interaction: ChatInputCommandInteraction) => {
   const happening = await Flashcore.get<FishingEventHappening>(STORAGE_KEYS.HAPPENING)
 
   if (happening && [FishingEventStatus.ACTIVE, FishingEventStatus.PENDING].includes(happening.status)) {
-    await interaction.reply({
-      content: 'There is already an active fishing event! If you want to start a new one, use `/fishing end` first.',
-      ephemeral: true,
-    })
+    // await interaction.reply({
+    //   content: 'There is already an active fishing event! If you want to start a new one, use `/fishing end` first.',
+    //   ephemeral: true,
+    // })
 
-    return
+    // DEV
+    await Flashcore.clear()
+
+    // return
   }
 
   const response = await interaction.reply({
@@ -45,6 +49,14 @@ export default async (interaction: ChatInputCommandInteraction) => {
       "🎮 **How to fish:** Use `/cast` command once you've joined\n\n" +
       '⏰ Event starts in 15 seconds...',
     withResponse: true,
+    // add thumbnail
+    files: [
+      {
+        attachment: `${METADATA.CDN}/thumbnail-001.webp`,
+        name: 'thumbnail-001.webp',
+        contentType: 'image/webp',
+      },
+    ],
   })
 
   await Flashcore.set<FishingEventHappening>(STORAGE_KEYS.HAPPENING, {
@@ -71,8 +83,8 @@ export default async (interaction: ChatInputCommandInteraction) => {
 
     // Set up interval to send follow-up messages with reaction count and track participants
     const startTime = Date.now()
-    const countdownDuration = 15 * 1000 // 15 second countdown
-    const updateInterval = 5 * 1000 // 5 seconds
+    const countdownDuration = 6 * 1000 // 15 second countdown
+    const updateInterval = 3 * 1000 // 5 seconds
 
     const intervalId = setInterval(async () => {
       try {
@@ -121,6 +133,19 @@ export default async (interaction: ChatInputCommandInteraction) => {
               '🎣 Participants can now use `/cast` to start fishing!\n' +
               // `⏰ Event ends in ${fishingEventManager.getFormattedTimeRemaining(interaction.guildId!)}\n\n` +
               '🏆 Good luck and happy fishing!',
+          })
+
+          // Send an ephemeral message to the admin who started the event
+          await interaction.followUp({
+            content: 'You joined the fishing event! This is your rod!',
+            ephemeral: true,
+            files: [
+              {
+                attachment: `${METADATA.CDN}/rod-002.webp`,
+                name: 'rod-001.webp',
+                contentType: 'image/webp',
+              },
+            ],
           })
           return
         }
