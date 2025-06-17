@@ -41,7 +41,6 @@ export default async (interaction: ChatInputCommandInteraction) => {
       {
         color: RODS['001'].color,
         description: `BALD is not the choice, BALD is in our blood!\n :`,
-
         fields: [
           {
             name: '🎣 Rod',
@@ -68,8 +67,8 @@ export default async (interaction: ChatInputCommandInteraction) => {
     ],
     files: [
       {
-        attachment: `${METADATA.CDN}/rod-001.webp`,
-        name: 'rod-001.webp',
+        attachment: `${METADATA.CDN}/rod-002.webp`,
+        name: 'rod-002.webp',
         contentType: 'image/webp',
       },
     ],

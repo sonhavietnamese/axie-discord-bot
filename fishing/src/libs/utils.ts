@@ -1,6 +1,7 @@
 import { ChatInputCommandInteraction } from 'discord.js'
 import { CARD_IMAGE_LOOKUP } from '../constants'
 import { ADMINS } from '../core/admin'
+import { CHANNELS, GUILDS } from '../configs/whitelist'
 
 export function computeCDNUrl(asset: string) {
   if (asset.startsWith('/')) {
@@ -14,13 +15,22 @@ export function isAdmin(userId: string) {
   return ADMINS.includes(userId)
 }
 
+export function isWhitelisted(guildId: string | null, channelId: string) {
+  if (!guildId || !GUILDS.includes(guildId) || !CHANNELS.includes(channelId)) {
+    return false
+  }
+
+  return true
+}
+
 export async function require<T extends ChatInputCommandInteraction>(condition: boolean, message: string, interaction: T) {
   if (!condition) {
     await interaction.reply({
       content: message,
       ephemeral: true,
     })
-    throw new Error('Requirement not met')
+
+    return
   }
 }
 

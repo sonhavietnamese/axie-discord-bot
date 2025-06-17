@@ -1,8 +1,10 @@
-import type { ChatInputCommandInteraction, GuildTextBasedChannel } from 'discord.js'
+import { ChannelType, ChatInputCommandInteraction, GuildTextBasedChannel } from 'discord.js'
 import { createCommandConfig, Flashcore, logger } from 'robo.js'
 import { EVENT_DURATION, STORAGE_KEYS } from '../../constants'
-import { isAdmin, require } from '../../libs/utils'
+import { isAdmin, isWhitelisted, require } from '../../libs/utils'
 import { METADATA } from '../../metadata'
+import { addParticipant, createFishingEvent, startFishingEvent } from '../../services/hanana'
+import { batchCreateUsers } from '../../services/user'
 import { FishingEventHappening, FishingEventStatus } from '../../types'
 
 export const config = createCommandConfig({
@@ -13,43 +15,21 @@ export const config = createCommandConfig({
 export default async (interaction: ChatInputCommandInteraction) => {
   logger.info(`Start fishing event command used by ${interaction.user}`)
 
-  try {
-    await require(isAdmin(interaction.user.id), 'You are not authorized to use this command', interaction)
-  } catch {
-    return // Stop execution if requirement not met
-  }
+  await require(interaction.channel?.type === ChannelType.GuildText, 'This command can only be used in a text channel', interaction)
+  await require(isAdmin(interaction.user.id), 'You must be an admin to use this command', interaction)
+  await require(isWhitelisted(interaction.guildId, interaction.channelId), 'This command can only be used in whitelisted channels', interaction)
 
-  if (!interaction.guildId) {
-    await interaction.reply({
-      content: 'This command can only be used in a server!',
-      ephemeral: true,
-    })
-    return
-  }
-
-  const happening = await Flashcore.get<FishingEventHappening>(STORAGE_KEYS.HAPPENING)
-
-  if (happening && [FishingEventStatus.ACTIVE, FishingEventStatus.PENDING].includes(happening.status)) {
-    // await interaction.reply({
-    //   content: 'There is already an active fishing event! If you want to start a new one, use `/fishing end` first.',
-    //   ephemeral: true,
-    // })
-
-    // DEV
-    await Flashcore.clear()
-
-    // return
-  }
+  const createdEvent = await createFishingEvent(interaction.guildId!, interaction.channelId, interaction.user.id)
 
   // Defer the reply first to avoid timeout issues with file downloads
   await interaction.deferReply()
 
   const response = await interaction.editReply({
     content:
-      '🎣 **Fishing Event is Starting!**\n\n' +
-      '🕒 **Duration:** 10 minutes\n' +
+      '🎣 **Fishing Hanana is Open!**\n\n' +
+      '🕒 **Duration:** 15 minutes\n' +
       '🎯 **How to participate:** React with 🎣 to join the event!\n' +
-      "🎮 **How to fish:** Use `/cast` command once you've joined\n\n" +
+      "🎮 **How to fish:** Use `/cast` command once you've joined and event started\n\n" +
       '⏰ Event starts in 15 seconds...',
     files: [
       {
@@ -101,13 +81,13 @@ export default async (interaction: ChatInputCommandInteraction) => {
               const fishingReaction = updatedMessage.reactions.cache.get('🎣')
 
               if (fishingReaction) {
-                // Fetch all users who reacted (excluding the bot)
                 const users = await fishingReaction.users.fetch()
-                users.forEach((user) => {
-                  if (!user.bot) {
-                    // fishingEventManager.addParticipant(interaction.guildId!, user.id)
-                  }
-                })
+                const filteredUsers = users.filter((user) => !user.bot)
+
+                const { inserted, existing } = await batchCreateUsers(filteredUsers.map((user) => ({ id: user.id, name: user.username })))
+
+                await addParticipant(createdEvent.id, [...inserted.map((user) => user.id), ...existing])
+                await startFishingEvent(createdEvent.id)
               }
             } catch (error) {
               logger.error('Error fetching reaction users:', error)

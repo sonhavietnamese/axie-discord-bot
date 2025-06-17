@@ -2,7 +2,9 @@ import { ButtonStyle, ChatInputCommandInteraction, ComponentType } from 'discord
 import { createCommandConfig, Flashcore, logger } from 'robo.js'
 import { STORAGE_KEYS } from '../constants'
 import { FishingEventHappening, FishingEventStatus } from '../types'
-import { userService, fishService } from '../libs/database'
+import { FISHES } from '../configs/fishes'
+import { RODS } from '../configs/rods'
+// import { userService, fishService } from '../libs/database'
 
 export const config = createCommandConfig({
   description: 'Cast your line and catch a fish',
@@ -93,13 +95,14 @@ export default async (interaction: ChatInputCommandInteraction) => {
 
   // Create the fishing message
   const fishingMessage = await interaction.reply({
-    content: `🎣 Cast your line and catch a fish!\n\n**Press the number:** ${targetNumbers[currentIndex]}`,
+    content: `🎣 Great throw, watch out, fish is naughty, carefully catch it rhytm!\n\n_Your task is **press the number** shown below in sequence\nFaster press, rarer fish!_\n\nPress the number: ${targetNumbers[currentIndex]}`,
     components: [
       {
         type: ComponentType.ActionRow,
         components: createButtonsWithDistraction(),
       },
     ],
+
     ephemeral: true,
     fetchReply: true,
   })
@@ -130,29 +133,27 @@ export default async (interaction: ChatInputCommandInteraction) => {
       if (currentIndex >= targetNumbers.length) {
         try {
           // Get or create user in database
-          await userService.getOrCreateUser(interaction.user.id, interaction.user.username)
+          // await userService.getOrCreateUser(interaction.user.id, interaction.user.username)
 
           // Get a random fish from database
-          const caughtFish = await fishService.getRandomFish()
+          const caughtFish = FISHES[Math.floor(Math.random() * FISHES.length)]
 
           if (caughtFish) {
             // Add the fish to user's collection
-            const updatedUser = await userService.addFish(interaction.user.id, caughtFish.id)
+            // const updatedUser = await userService.addFish(interaction.user.id, caughtFish.id)
 
             // Send public message to channel automatically
             if (interaction.channel && 'send' in interaction.channel) {
               await interaction.channel.send({
-                content: `🎣 **${interaction.user} caught a ${caughtFish.name}!**\n\n*${caughtFish.description}*\n\n🐟 **Rarity:** ${
-                  caughtFish.rarity.charAt(0).toUpperCase() + caughtFish.rarity.slice(1)
-                }\n🎯 **Total Fish:** ${updatedUser.fish}`,
+                content: `🎣 **${interaction.user} caught a ${caughtFish.name}!**\n\n*${caughtFish.description}*\n\n🐟 **Rarity:** ${caughtFish.rank.name}\n🎯 **Total Fish:** ${caughtFish.name}`,
               })
             }
 
             // User completed all numbers correctly
             await buttonInteraction.update({
-              content: `🎉 **Congratulations!** You caught a ${caughtFish.name}!\n\n**Rarity:** ${
-                caughtFish.rarity.charAt(0).toUpperCase() + caughtFish.rarity.slice(1)
-              }\n**Total Fish Caught:** ${updatedUser.fish}\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`,
+              content: `🎉 **Congratulations!** You caught a ${caughtFish.name}!\n\n**Rarity:** ${caughtFish.rank.name}\n**Total Fish Caught:** ${
+                caughtFish.name
+              }\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`,
               components: [],
             })
           } else {
@@ -177,7 +178,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
         // Move to next number
         // const currentTimeRemaining = fishingEventManager.getFormattedTimeRemaining(interaction.guildId!)
         await buttonInteraction.update({
-          content: `🎣 Cast your line and catch a fish!\n\n✅ Progress: ${currentIndex}/${targetNumbers.length}\n**Press the number:** ${targetNumbers[currentIndex]}`,
+          content: `🎣 Great throw, watch out, fish is naughty, carefully catch it rhytm!\n\n_Your task is **press the number** shown below in sequence\nFaster press, rarer fish!_\n\nProgress: ██░░░░░░░░ ${currentIndex}/${targetNumbers.length}\nPress the number: ${targetNumbers[currentIndex]}`,
           components: [
             {
               type: ComponentType.ActionRow,
@@ -189,10 +190,38 @@ export default async (interaction: ChatInputCommandInteraction) => {
     } else {
       // Wrong number pressed
       await buttonInteraction.update({
-        content: `❌ **Wrong number!** You pressed ${pressedNumber} but needed ${
+        content: `❌❌ **Ehhhh, You missed the rhytm, fish got away!**\n\nYou pressed ${pressedNumber} but needed ${
           targetNumbers[currentIndex]
-        }\n\nThe sequence was: ${targetNumbers.join(' → ')}`,
+        }\n\nThe sequence was: ${targetNumbers.join(' → ')}\nTry again!`,
         components: [],
+        embeds: [
+          {
+            color: RODS[0].color,
+            title: `Your Rod`,
+            fields: [
+              {
+                name: '🎣 Rod',
+                value: `BALD`,
+                inline: true,
+              },
+              {
+                name: '% Rate',
+                value: `80%`,
+                inline: true,
+              },
+              {
+                name: '⌛ Uses',
+                value: `3/5`,
+                inline: true,
+              },
+            ],
+          },
+          {
+            color: RODS[0].color,
+            title: `Your Bag`,
+            description: `Midas - 1\nKoi - 0\nAnchovy - 0\nMedis - 0\nZebra King - 0\nMonster - 0`,
+          },
+        ],
       })
       collector.stop('failed')
     }

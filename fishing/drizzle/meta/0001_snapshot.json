@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a5b252b8-018d-4463-af3f-160bafaf733a",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "8d23277f-c03d-46c2-b13b-b5d65cc63fea",
+  "prevId": "a5b252b8-018d-4463-af3f-160bafaf733a",
   "tables": {
     "fishes": {
       "name": "fishes",
@@ -38,13 +38,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "participants": {
-          "name": "participants",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "status": {
           "name": "status",
           "type": "text",
@@ -71,6 +64,65 @@
       },
       "indexes": {},
       "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "hanana_participants": {
+      "name": "hanana_participants",
+      "columns": {
+        "hanana_id": {
+          "name": "hanana_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "joined_at": {
+          "name": "joined_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "hanana_participants_hanana_id_hanana_id_fk": {
+          "name": "hanana_participants_hanana_id_hanana_id_fk",
+          "tableFrom": "hanana_participants",
+          "tableTo": "hanana",
+          "columnsFrom": [
+            "hanana_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "hanana_participants_user_id_users_id_fk": {
+          "name": "hanana_participants_user_id_users_id_fk",
+          "tableFrom": "hanana_participants",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

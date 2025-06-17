@@ -12,14 +12,15 @@
     "invite": "robo invite",
     "start": "robo start",
     "upgrade": "sage upgrade",
-    "db:setup": "bun run scripts/setup-db.ts && sqlite3 dev.db < setup.sql",
+    "======DB=======": "",
     "db:seed": "bun run scripts/seed.ts",
-    "db:test": "bun run scripts/test-db.ts",
+    "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit generate && drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:nuke": "rm -rf dev.db && rm -Rf drizzle",
+    "db:reset": "bun run db:nuke && bun run db:migrate && bun run db:seed"
   },
   "dependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "better-sqlite3": "^11.10.0",
     "discord.js": "^14.19.3",
     "drizzle-orm": "^0.44.2",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@swc/core": "^1.7.26",
+    "@types/bun": "^1.2.16",
     "@types/node": "^22.7.4",
     "drizzle-kit": "^0.31.1",
     "typescript": "^5.6.2"

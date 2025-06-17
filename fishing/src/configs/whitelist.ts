@@ -1,0 +1,2 @@
+export const CHANNELS = ['1378013652384223352']
+export const GUILDS = ['1346284479391600661']
