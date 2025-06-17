@@ -2,8 +2,8 @@ import type { ChatInputCommandInteraction, GuildTextBasedChannel } from 'discord
 import { createCommandConfig, Flashcore, logger } from 'robo.js'
 import { EVENT_DURATION, STORAGE_KEYS } from '../../constants'
 import { isAdmin, require } from '../../libs/utils'
-import { FishingEventHappening, FishingEventStatus } from '../../types'
 import { METADATA } from '../../metadata'
+import { FishingEventHappening, FishingEventStatus } from '../../types'
 
 export const config = createCommandConfig({
   description: 'Start the fishing event',
@@ -41,15 +41,16 @@ export default async (interaction: ChatInputCommandInteraction) => {
     // return
   }
 
-  const response = await interaction.reply({
+  // Defer the reply first to avoid timeout issues with file downloads
+  await interaction.deferReply()
+
+  const response = await interaction.editReply({
     content:
       '🎣 **Fishing Event is Starting!**\n\n' +
       '🕒 **Duration:** 10 minutes\n' +
       '🎯 **How to participate:** React with 🎣 to join the event!\n' +
       "🎮 **How to fish:** Use `/cast` command once you've joined\n\n" +
       '⏰ Event starts in 15 seconds...',
-    withResponse: true,
-    // add thumbnail
     files: [
       {
         attachment: `${METADATA.CDN}/thumbnail-001.webp`,
@@ -78,7 +79,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
           return
         }
       }
-      await response.resource?.message?.react('🎣')
+      await response.react('🎣')
     }
 
     // Set up interval to send follow-up messages with reaction count and track participants
@@ -96,7 +97,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
           const channel = interaction.channel || (await interaction.client.channels.fetch(interaction.channelId))
           if (channel && channel.isTextBased()) {
             try {
-              const updatedMessage = await channel.messages.fetch(response.resource?.message?.id || '')
+              const updatedMessage = await channel.messages.fetch(response.id)
               const fishingReaction = updatedMessage.reactions.cache.get('🎣')
 
               if (fishingReaction) {
@@ -137,12 +138,24 @@ export default async (interaction: ChatInputCommandInteraction) => {
 
           // Send an ephemeral message to the admin who started the event
           await interaction.followUp({
-            content: 'You joined the fishing event! This is your rod!',
+            content: 'This is your rod!',
+            // add a row of infomation about name, rate, and level
+            embeds: [
+              {
+                fields: [
+                  {
+                    name: 'Name',
+                    value: 'John Doe',
+                  },
+                ],
+              },
+            ],
+
             ephemeral: true,
             files: [
               {
-                attachment: `${METADATA.CDN}/rod-002.webp`,
-                name: 'rod-001.webp',
+                attachment: `${METADATA.CDN}/rod-003.webp`,
+                name: 'rod-002.webp',
                 contentType: 'image/webp',
               },
             ],
@@ -179,7 +192,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
         const channel = interaction.channel || (await interaction.client.channels.fetch(interaction.channelId))
         if (!channel || !channel.isTextBased()) return
 
-        const updatedMessage = await channel.messages.fetch(response.resource?.message?.id || '')
+        const updatedMessage = await channel.messages.fetch(response.id)
         const fishingReaction = updatedMessage.reactions.cache.get('🎣')
         const reactionCount = fishingReaction ? fishingReaction.count - 1 : 0
 

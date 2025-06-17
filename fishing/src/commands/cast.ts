@@ -2,6 +2,7 @@ import { ButtonStyle, ChatInputCommandInteraction, ComponentType } from 'discord
 import { createCommandConfig, Flashcore, logger } from 'robo.js'
 import { STORAGE_KEYS } from '../constants'
 import { FishingEventHappening, FishingEventStatus } from '../types'
+import { userService, fishService } from '../libs/database'
 
 export const config = createCommandConfig({
   description: 'Cast your line and catch a fish',
@@ -57,21 +58,21 @@ export default async (interaction: ChatInputCommandInteraction) => {
   //   return
   // }
 
-  if (!happening || happening.status === FishingEventStatus.ENDED || happening.endTime < Date.now()) {
-    await interaction.reply({
-      content: '🚫 No fishing event is currently happening! Ask <@852110112264945704> to start a new one.',
-      ephemeral: true,
-    })
-    return
-  }
+  // if (!happening || happening.status === FishingEventStatus.ENDED || happening.endTime < Date.now()) {
+  //   await interaction.reply({
+  //     content: '🚫 No fishing event is currently happening! Ask <@852110112264945704> to start a new one.',
+  //     ephemeral: true,
+  //   })
+  //   return
+  // }
 
-  if (happening.status === FishingEventStatus.PENDING) {
-    await interaction.reply({
-      content: '🚫 Fishing event is not active yet! Wait for it to start.',
-      ephemeral: true,
-    })
-    return
-  }
+  // if (happening.status === FishingEventStatus.PENDING) {
+  //   await interaction.reply({
+  //     content: '🚫 Fishing event is not active yet! Wait for it to start.',
+  //     ephemeral: true,
+  //   })
+  //   return
+  // }
 
   // Check if the user can fish (is a participant)
   // if (!fishingEventManager.canUserFish(interaction.guildId, interaction.user.id)) {
@@ -127,22 +128,50 @@ export default async (interaction: ChatInputCommandInteraction) => {
       currentIndex++
 
       if (currentIndex >= targetNumbers.length) {
-        const thing = randomThing()
+        try {
+          // Get or create user in database
+          await userService.getOrCreateUser(interaction.user.id, interaction.user.username)
 
-        // Send public message to channel automatically
-        if (interaction.channel && 'send' in interaction.channel) {
-          await interaction.channel.send({
-            content: `🎣 **${interaction.user} caught a ${thing.name}!**\n\n*${thing.description}*\n\n${thing.type === 'fish' ? '🐟' : '👢'} Type: ${
-              thing.type.charAt(0).toUpperCase() + thing.type.slice(1)
-            }\n⚖️ Weight: ${thing.weight}${thing.type === 'fish' ? ' lbs' : ' kg'}`,
+          // Get a random fish from database
+          const caughtFish = await fishService.getRandomFish()
+
+          if (caughtFish) {
+            // Add the fish to user's collection
+            const updatedUser = await userService.addFish(interaction.user.id, caughtFish.id)
+
+            // Send public message to channel automatically
+            if (interaction.channel && 'send' in interaction.channel) {
+              await interaction.channel.send({
+                content: `🎣 **${interaction.user} caught a ${caughtFish.name}!**\n\n*${caughtFish.description}*\n\n🐟 **Rarity:** ${
+                  caughtFish.rarity.charAt(0).toUpperCase() + caughtFish.rarity.slice(1)
+                }\n🎯 **Total Fish:** ${updatedUser.fish}`,
+              })
+            }
+
+            // User completed all numbers correctly
+            await buttonInteraction.update({
+              content: `🎉 **Congratulations!** You caught a ${caughtFish.name}!\n\n**Rarity:** ${
+                caughtFish.rarity.charAt(0).toUpperCase() + caughtFish.rarity.slice(1)
+              }\n**Total Fish Caught:** ${updatedUser.fish}\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`,
+              components: [],
+            })
+          } else {
+            // Fallback to old system if no fish in database
+            const thing = randomThing()
+            await buttonInteraction.update({
+              content: `🎉 **Congratulations!** You caught a ${thing.name}!\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`,
+              components: [],
+            })
+          }
+        } catch (error) {
+          logger.error('Error handling fish catch:', error)
+          // Fallback to old system on error
+          const thing = randomThing()
+          await buttonInteraction.update({
+            content: `🎉 **Congratulations!** You caught a ${thing.name}!\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`,
+            components: [],
           })
         }
-
-        // User completed all numbers correctly
-        await buttonInteraction.update({
-          content: `🎉 **Congratulations!** You caught a ${thing.name}!\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`,
-          components: [],
-        })
         collector.stop('completed')
       } else {
         // Move to next number
