@@ -1,13 +1,13 @@
 import { ButtonStyle, ChatInputCommandInteraction, ComponentType, Guild } from 'discord.js'
 import { FISHES } from '../configs/fishes'
 import { BASE_FISHING_RATES } from '../configs/game'
+import { NFTs } from '../configs/nfts'
 import { RODS } from '../configs/rods'
 import { TRASHES } from '../configs/trashes'
 import { CHANNELS, GUILDS } from '../configs/whitelist'
 import { ADMINS } from '../core/admin'
 import { METADATA } from '../metadata'
 import type { Inventory } from '../schema'
-import { NFTs } from '~/configs/nfts'
 
 export function computeCDNUrl(asset: string) {
   if (asset.startsWith('/')) {
@@ -94,12 +94,12 @@ export async function assignRod(users: Array<{ id: string; name: string }>, guil
         const hasBALDInName = member.user.globalName?.toLowerCase().includes('bald') || false
 
         // Count roles that contain "Allow-" in their name
-        const allowRolesCount = member.roles.cache.filter((role) => role.name.toLowerCase().includes('allow-')).size
+        const allowRolesCount = member.roles.cache.filter((role) => role.name.toLowerCase().includes('axie owner')).size
 
         let assignedRod
         if (hasBALDInName) {
           assignedRod = RODS[2] // BALD rod (id: '003')
-        } else if (allowRolesCount > 2) {
+        } else if (allowRolesCount > 3) {
           assignedRod = RODS[1] // Mavis rod (id: '002')
         } else {
           assignedRod = RODS[0] // Branch rod (id: '001') - default
@@ -240,7 +240,6 @@ export function getNFT(id: string) {
 }
 
 export function getStuff(stuffId: string) {
-  console.log('getStuff', stuffId)
   if (stuffId === '000') {
     return getTrash(stuffId)
   }
@@ -250,7 +249,6 @@ export function getStuff(stuffId: string) {
   }
 
   if (['12114085'].includes(stuffId)) {
-    console.log('getNFT', stuffId)
     return getNFT(stuffId)
   }
 

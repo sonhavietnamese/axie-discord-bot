@@ -1,6 +1,7 @@
 import { eq, inArray, sql, like, and } from 'drizzle-orm'
 import { db } from '../libs/database'
 import { hanana, hananaParticipants, users } from '../schema'
+import { reset } from '../libs/nft'
 
 // Create a new fishing event
 export async function createFishingEvent(guildId: string, channelId: string, createdBy: string) {
@@ -205,6 +206,8 @@ export async function endFishingEventWithCleanup(eventId: string) {
 
 export async function nuke() {
   console.log('[DB][💥] Nuking all active events')
+
+  reset()
 
   // Get all active event IDs first
   const activeEvents = await db

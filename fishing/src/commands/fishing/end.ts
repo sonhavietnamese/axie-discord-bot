@@ -31,6 +31,6 @@ export default async (interaction: ChatInputCommandInteraction) => {
   }
 
   await interaction.reply({
-    content: '🎣 **Fishing Event Ended!**',
+    content: '🎣 **Fishing Event Ended!**\n\nYou can still exchange your fish to get candies 🍬!',
   })
 }

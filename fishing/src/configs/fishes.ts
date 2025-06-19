@@ -8,7 +8,7 @@ export const FISHES = [
     rank: RANKS.COMMON,
     image: 'fish-001',
     description: 'Anchovy is a small fish that is often found in the ocean. It is a good source of protein and omega-3 fatty acids.',
-    price: 0.3,
+    price: 1 / 3,
     emoji: '<:001:1384889012141031484>',
   },
   {

@@ -4,7 +4,7 @@ import { FISHES } from '../configs/fishes'
 import { NFTs } from '../configs/nfts'
 import { RODS } from '../configs/rods'
 import { TRASHES } from '../configs/trashes'
-import { fishes, nfts, rods, trashes } from '../schema'
+import { fishes, nfts, rods, trashes, exchanges } from '../schema'
 
 // Create database connection using Bun's global Database
 // @ts-ignore - Bun provides Database globally

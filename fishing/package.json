@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "======ROBO=======": "",
-    "robo:build": "robo build",
+    "robo:build": "rm -rf dist && rm -rf .robo && robo build",
     "robo:deploy": "robo deploy",
     "robo:dev": "robox dev",
     "robo:doctor": "sage doctor",

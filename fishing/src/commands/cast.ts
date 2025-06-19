@@ -1,4 +1,4 @@
-import { ChannelType, ChatInputCommandInteraction, ComponentType } from 'discord.js'
+import { ChannelType, ChatInputCommandInteraction, ComponentType, MessageFlags } from 'discord.js'
 import { createCommandConfig, logger } from 'robo.js'
 import { NFTs } from '../configs/nfts'
 import { RODS } from '../configs/rods'
@@ -56,7 +56,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
   }
 
   const configuredRod = RODS.find((rod) => rod.id === assignedRod.rod)
-  const isRodBroken = (configuredRod?.uses || 0) - (assignedRod.uses || 0 + 1) <= 0
+  const isRodBroken = (configuredRod?.uses || 0) - (assignedRod.uses || 0) <= 0
 
   if (isRodBroken) {
     await interaction.editReply({
@@ -102,7 +102,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
   // Create a button collector
   const collector = fishingMessage.createMessageComponentCollector({
     componentType: ComponentType.Button,
-    time: 20_000, // 20 seconds timeout
+    time: 30_000, // 20 seconds timeout
   })
 
   collector.on('collect', async (buttonInteraction) => {
@@ -112,6 +112,9 @@ export default async (interaction: ChatInputCommandInteraction) => {
       currentIndex++
 
       if (currentIndex >= targetNumbers.length) {
+        // Add a flag to track if interaction has been handled
+        let interactionHandled = false
+
         try {
           // Get a random fish from database
           let caughtStuff: { id: string; newRates: number[] } | undefined = undefined
@@ -142,23 +145,38 @@ export default async (interaction: ChatInputCommandInteraction) => {
                 }\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`
 
             // FIRST: Acknowledge the button interaction immediately to prevent timeout
-            await buttonInteraction.update({
-              content: message,
-              components: [],
-              files: [
-                {
-                  attachment: computeCDNUrl(stuff.image),
-                  name: `${stuff.image}.png`,
-                },
-              ],
-            })
+            try {
+              await buttonInteraction.update({
+                content: message,
+                components: [],
+                files: [
+                  {
+                    attachment: computeCDNUrl(stuff.image),
+                    name: `${stuff.image}.png`,
+                  },
+                ],
+              })
+              interactionHandled = true
+            } catch (updateError) {
+              logger.error('Error updating button interaction:', updateError)
+              // If the interaction update fails, try a simpler fallback
+              if (!interactionHandled) {
+                try {
+                  await buttonInteraction.update({
+                    content: `🎉 **Congratulations!** You caught a ${stuff.name}!\n\nYou successfully pressed all numbers: ${targetNumbers.join(
+                      ' → ',
+                    )}`,
+                    components: [],
+                  })
+                  interactionHandled = true
+                } catch (fallbackError) {
+                  logger.error('Error with fallback update:', fallbackError)
+                }
+              }
+            }
 
             // THEN: Send public message to channel if it's a rare catch (after button interaction is acknowledged)
-            if (
-              interaction.channel &&
-              'send' in interaction.channel &&
-              ['legendary', 'supreme', 'monster', 'mythic', 'nft'].includes(stuff.rank.id)
-            ) {
+            if (interaction.channel && 'send' in interaction.channel && ['supreme', 'monster', 'mythic', 'nft'].includes(stuff.rank.id)) {
               try {
                 const publicMessage = await interaction.channel.send({
                   content: `🎣 **${interaction.user} caught a ${stuff.name}!**\n\n🐟 **Rarity:** ${stuff.rank.name}\n\n**About**: ${stuff.description}\n\n _Reaction to share the luck_ `,
@@ -178,45 +196,70 @@ export default async (interaction: ChatInputCommandInteraction) => {
             }
           } else {
             // Fallback to old system if no fish in database
-            const thing = getStuff('000')
-            await buttonInteraction.update({
-              content: `🎉 **Congratulations!** You caught a ${thing.name}!\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`,
-              components: [],
-            })
+            if (!interactionHandled) {
+              const thing = getStuff('000')
+              try {
+                await buttonInteraction.update({
+                  content: `🎉 **Congratulations!** You caught a ${thing.name}!\n\nYou successfully pressed all numbers: ${targetNumbers.join(
+                    ' → ',
+                  )}`,
+                  components: [],
+                })
+                interactionHandled = true
+              } catch (updateError) {
+                logger.error('Error updating button interaction in fallback:', updateError)
+              }
+            }
           }
         } catch (error) {
           logger.error('Error handling fish catch:', error)
-          // Fallback to old system on error
-          const thing = getStuff('000')
-          await buttonInteraction.update({
-            content: `🎉 **Congratulations!** You caught a ${thing.name}!\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`,
-            components: [],
-          })
+          // Only try fallback if interaction hasn't been handled yet
+          if (!interactionHandled) {
+            try {
+              const thing = getStuff('000')
+              await buttonInteraction.update({
+                content: `🎉 **Congratulations!** You caught a ${thing.name}!\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`,
+                components: [],
+              })
+              interactionHandled = true
+            } catch (updateError) {
+              logger.error('Error with final fallback update:', updateError)
+            }
+          }
         }
         collector.stop('completed')
       } else {
         // Move to next number
-        // const currentTimeRemaining = fishingEventManager.getFormattedTimeRemaining(interaction.guildId!)
-        await buttonInteraction.update({
-          content: `🎣 Great throw, watch out, fish is naughty, carefully catch it rhytm!\n\n_Your task is **press the number** shown below in sequence\nFaster press, rarer fish!_\n\nProgress: ${currentIndex}/${targetNumbers.length}\nPress the number: ${targetNumbers[currentIndex]}`,
-          components: [
-            {
-              type: ComponentType.ActionRow,
-              components: createButtonsWithDistraction(),
-            },
-          ],
-        })
+        try {
+          await buttonInteraction.update({
+            content: `🎣 Great throw, watch out, fish is naughty, carefully catch it rhytm!\n\n_Your task is **press the number** shown below in sequence\nFaster press, rarer fish!_\n\nProgress: ${currentIndex}/${targetNumbers.length}\nPress the number: ${targetNumbers[currentIndex]}`,
+            components: [
+              {
+                type: ComponentType.ActionRow,
+                components: createButtonsWithDistraction(),
+              },
+            ],
+          })
+        } catch (updateError) {
+          logger.error('Error updating interaction for next number:', updateError)
+          collector.stop('error')
+        }
       }
     } else {
       // Wrong number pressed
-      await buttonInteraction.update({
-        content: `❌❌ **Ehhhh, You missed the rhytm, fish got away!**\n\nYou pressed ${pressedNumber} but needed ${
-          targetNumbers[currentIndex]
-        }\n\nThe sequence was: ${targetNumbers.join(' → ')}\nTry again!`,
-        components: [],
-      })
-      await handleUserCatch(interaction.user.id, userRate, null, interaction.guildId, interaction.channelId)
-      collector.stop('failed')
+      try {
+        await buttonInteraction.update({
+          content: `❌❌ **Ehhhh, You missed the rhytm, fish got away!**\n\nYou pressed ${pressedNumber} but needed ${
+            targetNumbers[currentIndex]
+          }\n\nThe sequence was: ${targetNumbers.join(' → ')}\nTry again!`,
+          components: [],
+        })
+        await handleUserCatch(interaction.user.id, userRate, null, interaction.guildId, interaction.channelId)
+        collector.stop('failed')
+      } catch (updateError) {
+        logger.error('Error updating interaction for wrong number:', updateError)
+        collector.stop('error')
+      }
     }
   })
 

@@ -40,7 +40,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
       '2. `/inventory` - View your inventory!\n' +
       '3. `/rod` - View your rod!\n' +
       "4. `/et-store` - Go to the ET's Seafood Store!\n\n" +
-      '⏰ Event starts in 15 seconds...',
+      '⏰ Event starts in 120 seconds...',
     files: [
       {
         attachment: computeCDNUrl('thumbnail-001'),
@@ -74,8 +74,8 @@ export default async (interaction: ChatInputCommandInteraction) => {
 
     // Set up interval to send follow-up messages with reaction count and track participants
     const startTime = Date.now()
-    const countdownDuration = 15 * 1000 // 15 second countdown
-    const updateInterval = 5 * 1000 // 5 seconds
+    const countdownDuration = 120 * 1000 // 120 seconds countdown
+    const updateInterval = 20 * 1000 // 5 seconds
 
     const intervalId = setInterval(async () => {
       try {

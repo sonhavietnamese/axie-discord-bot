@@ -64,6 +64,27 @@ export const rods = sqliteTable('rods', {
   id: text('id').primaryKey(),
 })
 
+// Exchange table to track sell transactions and prevent double spending
+export const exchanges = sqliteTable('exchanges', {
+  id: text('id').primaryKey(), // UUID for unique exchange ID
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+
+  // Store the items that were sold as JSON: { "001": 5, "002": 3, ... }
+  itemsSold: text('items_sold').notNull(),
+
+  // Total candies earned from this exchange
+  candiesEarned: integer('candies_earned').notNull(),
+
+  // Status of the exchange (completed, failed, pending)
+  status: text('status').notNull().default('completed'),
+
+  createdAt: text('created_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+})
+
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 
@@ -72,6 +93,9 @@ export type NewHanana = typeof hanana.$inferInsert
 
 export type HananaParticipant = typeof hananaParticipants.$inferSelect
 export type NewHananaParticipant = typeof hananaParticipants.$inferInsert
+
+export type Exchange = typeof exchanges.$inferSelect
+export type NewExchange = typeof exchanges.$inferInsert
 
 // Type for inventory JSON structure
 export type Inventory = Record<string, number>

@@ -1,4 +1,4 @@
-import type { ChatInputCommandInteraction } from 'discord.js'
+import { MessageFlags, type ChatInputCommandInteraction } from 'discord.js'
 import { createCommandConfig } from 'robo.js'
 import { computeCDNUrl, getRod } from '../libs/utils'
 import { getUserRod } from '../services/hanana'
@@ -9,7 +9,7 @@ export const config = createCommandConfig({
 } as const)
 
 export default async (interaction: ChatInputCommandInteraction) => {
-  await interaction.deferReply({ ephemeral: true })
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral })
   let assignedRod: { rod: string; uses: number } | undefined = undefined
   try {
     assignedRod = await getUserRod(interaction.guildId!, interaction.channelId, interaction.user.id)

@@ -31,3 +31,6 @@ export const MAX_ROD_USES = {
 }
 
 export const UNDERWATER_STUFFS_COUNT = FISHES.length + TRASHES.length
+
+export const CURRENCY_ID = '67fdf1b4af7ae841a3175105'
+export const REALM_ID = '67fdf1b4a21c1d9e7b14a451'

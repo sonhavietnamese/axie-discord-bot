@@ -1,3 +1,13 @@
+CREATE TABLE `exchanges` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`items_sold` text NOT NULL,
+	`candies_earned` integer NOT NULL,
+	`status` text DEFAULT 'completed' NOT NULL,
+	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE `fishes` (
 	`id` text PRIMARY KEY NOT NULL
 );
