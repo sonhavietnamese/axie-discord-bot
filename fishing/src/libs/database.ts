@@ -8,7 +8,8 @@ import { fishes, nfts, rods, trashes } from '../schema'
 
 // Create database connection using Bun's global Database
 // @ts-ignore - Bun provides Database globally
-const sqlite = new Database('./dev.db')
+const dbPath = './dev.db'
+const sqlite = new Database(dbPath)
 export const db = drizzle(sqlite)
 
 // Seed database with IDs from config files

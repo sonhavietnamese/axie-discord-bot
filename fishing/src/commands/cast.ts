@@ -1,100 +1,92 @@
-import { ButtonStyle, ChatInputCommandInteraction, ComponentType } from 'discord.js'
-import { createCommandConfig, Flashcore, logger } from 'robo.js'
-import { STORAGE_KEYS } from '../constants'
-import { FishingEventHappening, FishingEventStatus } from '../types'
-import { FISHES } from '../configs/fishes'
+import { ChannelType, ChatInputCommandInteraction, ComponentType } from 'discord.js'
+import { createCommandConfig, logger } from 'robo.js'
+import { NFTs } from '../configs/nfts'
 import { RODS } from '../configs/rods'
-// import { userService, fishService } from '../libs/database'
+import { specialPlayer } from '../libs/nft'
+import {
+  catchUnderwaterStuff,
+  computeCDNUrl,
+  createButtonsWithDistraction,
+  generateRandomNumbers,
+  getStuff,
+  isWhitelisted,
+  randomInRange,
+  require,
+} from '../libs/utils'
+import { getUserRod } from '../services/hanana'
+import { getUserRate, handleUserCatch } from '../services/user'
 
 export const config = createCommandConfig({
   description: 'Cast your line and catch a fish',
 } as const)
 
-// Function to generate random numbers array
-const generateRandomNumbers = (length: number = 3): number[] => {
-  const numbers: number[] = []
-  for (let i = 0; i < length; i++) {
-    numbers.push(Math.floor(Math.random() * 5) + 1) // Random number 1-5
-  }
-  return numbers
-}
-
-// Function to create buttons with random distraction
-const createButtonsWithDistraction = () => {
-  const buttons = []
-  const distractionIndex = Math.floor(Math.random() * 5) // Random button to distract
-  const distractionStyles = [ButtonStyle.Success, ButtonStyle.Danger, ButtonStyle.Secondary]
-  const distractionStyle = distractionStyles[Math.floor(Math.random() * distractionStyles.length)]
-
-  for (let i = 1; i <= 5; i++) {
-    buttons.push({
-      type: ComponentType.Button,
-      label: i.toString(),
-      style: i - 1 === distractionIndex ? distractionStyle : ButtonStyle.Primary,
-      custom_id: `button_${i}`,
-    })
-  }
-
-  return buttons
-}
-
 export default async (interaction: ChatInputCommandInteraction) => {
   logger.info(`Cast command used by ${interaction.user}`)
 
-  if (!interaction.guildId) {
-    await interaction.reply({
-      content: '🚫 This command can only be used in a server!',
-      ephemeral: true,
+  await interaction.deferReply({ ephemeral: true })
+
+  try {
+    await require(interaction.channel?.type === ChannelType.GuildText, 'This command can only be used in a text channel', interaction)
+    await require(isWhitelisted(interaction.guildId, interaction.channelId), 'This command can only be used in whitelisted channels', interaction)
+  } catch (error) {
+    // The require function has already replied to the interaction
+    return
+  }
+
+  // TODO: Check if user has joined the fishing event and has a rod
+  let assignedRod: { rod: string; uses: number } | undefined = undefined
+
+  try {
+    assignedRod = await getUserRod(interaction.guildId!, interaction.channelId, interaction.user.id)
+  } catch (error) {
+    if (error instanceof Error) {
+      await interaction.editReply({
+        content: error.message,
+      })
+
+      return
+    }
+  }
+
+  if (!assignedRod) {
+    await interaction.editReply({
+      content: 'You do not have any rods yet.',
     })
     return
   }
 
-  // Check if there's an active fishing event
-  const happening = await Flashcore.get<FishingEventHappening>(STORAGE_KEYS.HAPPENING)
+  const configuredRod = RODS.find((rod) => rod.id === assignedRod.rod)
+  const isRodBroken = (configuredRod?.uses || 0) - (assignedRod.uses || 0 + 1) <= 0
 
-  // if (!happening || [FishingEventStatus.PENDING, FishingEventStatus.ENDED].includes(happening.status) || happening.endTime < Date.now()) {
-  //   await interaction.reply({
-  //     content: '🚫 No fishing event is currently happening! Ask <@852110112264945704> to start a new one.',
-  //     ephemeral: true,
-  //   })
-  //   return
-  // }
+  if (isRodBroken) {
+    await interaction.editReply({
+      content: 'Your rod is broken.',
+    })
+    return
+  }
 
-  // if (!happening || happening.status === FishingEventStatus.ENDED || happening.endTime < Date.now()) {
-  //   await interaction.reply({
-  //     content: '🚫 No fishing event is currently happening! Ask <@852110112264945704> to start a new one.',
-  //     ephemeral: true,
-  //   })
-  //   return
-  // }
+  if (!configuredRod) {
+    await interaction.editReply({
+      content: 'Your rod is not configured correctly. Please contact an admin.',
+    })
+    return
+  }
 
-  // if (happening.status === FishingEventStatus.PENDING) {
-  //   await interaction.reply({
-  //     content: '🚫 Fishing event is not active yet! Wait for it to start.',
-  //     ephemeral: true,
-  //   })
-  //   return
-  // }
+  const userRate = await getUserRate(interaction.user.id)
 
-  // Check if the user can fish (is a participant)
-  // if (!fishingEventManager.canUserFish(interaction.guildId, interaction.user.id)) {
-  //   const timeRemaining = fishingEventManager.getFormattedTimeRemaining(interaction.guildId)
-  //   await interaction.reply({
-  //     content:
-  //       "🚫 **You haven't joined the fishing event!**\n\n" +
-  //       'React with 🎣 on the event announcement message to join the fishing event.\n' +
-  //       `⏰ Time remaining: ${timeRemaining}`,
-  //     ephemeral: true,
-  //   })
-  //   return
-  // }
+  if (!userRate) {
+    await interaction.editReply({
+      content: 'Fishing string is broken. What a bad luck! Try again later.',
+    })
+    return
+  }
 
   // Generate random numbers for this game
-  const targetNumbers = generateRandomNumbers(3)
+  const targetNumbers = generateRandomNumbers(randomInRange(3, 7))
   let currentIndex = 0
 
   // Create the fishing message
-  const fishingMessage = await interaction.reply({
+  const fishingMessage = await interaction.editReply({
     content: `🎣 Great throw, watch out, fish is naughty, carefully catch it rhytm!\n\n_Your task is **press the number** shown below in sequence\nFaster press, rarer fish!_\n\nPress the number: ${targetNumbers[currentIndex]}`,
     components: [
       {
@@ -103,28 +95,17 @@ export default async (interaction: ChatInputCommandInteraction) => {
       },
     ],
 
-    ephemeral: true,
-    fetchReply: true,
+    // ephemeral: true,
+    // fetchReply: true,
   })
 
   // Create a button collector
   const collector = fishingMessage.createMessageComponentCollector({
     componentType: ComponentType.Button,
-    time: 30000, // 30 seconds timeout
+    time: 20_000, // 20 seconds timeout
   })
 
   collector.on('collect', async (buttonInteraction) => {
-    // Check if the fishing event is still active during the game
-    // if (!fishingEventManager.canUserFish(interaction.guildId!, interaction.user.id)) {
-    //   await buttonInteraction.update({
-    //     content: '🚫 **Fishing event has ended!** Your fishing attempt was cancelled.',
-    //     components: [],
-    //   })
-    //   collector.stop('event_ended')
-    //   return
-    // }
-
-    // Extract the number from the button custom_id
     const pressedNumber = parseInt(buttonInteraction.customId.split('_')[1])
 
     if (pressedNumber === targetNumbers[currentIndex]) {
@@ -132,33 +113,72 @@ export default async (interaction: ChatInputCommandInteraction) => {
 
       if (currentIndex >= targetNumbers.length) {
         try {
-          // Get or create user in database
-          // await userService.getOrCreateUser(interaction.user.id, interaction.user.username)
-
           // Get a random fish from database
-          const caughtFish = FISHES[Math.floor(Math.random() * FISHES.length)]
+          let caughtStuff: { id: string; newRates: number[] } | undefined = undefined
 
-          if (caughtFish) {
-            // Add the fish to user's collection
-            // const updatedUser = await userService.addFish(interaction.user.id, caughtFish.id)
-
-            // Send public message to channel automatically
-            if (interaction.channel && 'send' in interaction.channel) {
-              await interaction.channel.send({
-                content: `🎣 **${interaction.user} caught a ${caughtFish.name}!**\n\n*${caughtFish.description}*\n\n🐟 **Rarity:** ${caughtFish.rank.name}\n🎯 **Total Fish:** ${caughtFish.name}`,
-              })
+          if (specialPlayer.enabled && specialPlayer.id === interaction.user.id && specialPlayer.turn === assignedRod.uses) {
+            caughtStuff = {
+              id: NFTs[0].id,
+              newRates: userRate,
             }
+          }
 
-            // User completed all numbers correctly
+          if (!caughtStuff) {
+            caughtStuff = catchUnderwaterStuff(userRate, configuredRod?.multiplier || [])
+          }
+
+          if (caughtStuff) {
+            const stuff = getStuff(caughtStuff.id)
+            await handleUserCatch(interaction.user.id, caughtStuff.newRates, caughtStuff.id, interaction.guildId, interaction.channelId)
+
+            // User completed all numbers correctly - prepare the message content
+            const isTrash = stuff.rank.name.toUpperCase() === 'USELESS'
+            const message = isTrash
+              ? `🎉 **Not bad!** You caught ${stuff.name}!\n\n**Rarity:** ${stuff.rank.name}\n**Thing:** ${
+                  stuff.name
+                }\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}\n\n_You can use it to throw at <@852110112264945704>!_`
+              : `🎉 **Congratulations!** You caught a ${stuff.name}!\n\n**Rarity:** ${stuff.rank.name}\n**Fish:** ${stuff.name}\n\n**About**: ${
+                  stuff.description
+                }\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`
+
+            // FIRST: Acknowledge the button interaction immediately to prevent timeout
             await buttonInteraction.update({
-              content: `🎉 **Congratulations!** You caught a ${caughtFish.name}!\n\n**Rarity:** ${caughtFish.rank.name}\n**Total Fish Caught:** ${
-                caughtFish.name
-              }\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`,
+              content: message,
               components: [],
+              files: [
+                {
+                  attachment: computeCDNUrl(stuff.image),
+                  name: `${stuff.image}.png`,
+                },
+              ],
             })
+
+            // THEN: Send public message to channel if it's a rare catch (after button interaction is acknowledged)
+            if (
+              interaction.channel &&
+              'send' in interaction.channel &&
+              ['legendary', 'supreme', 'monster', 'mythic', 'nft'].includes(stuff.rank.id)
+            ) {
+              try {
+                const publicMessage = await interaction.channel.send({
+                  content: `🎣 **${interaction.user} caught a ${stuff.name}!**\n\n🐟 **Rarity:** ${stuff.rank.name}\n\n**About**: ${stuff.description}\n\n _Reaction to share the luck_ `,
+                  files: [
+                    {
+                      attachment: computeCDNUrl(stuff.image),
+                      name: `${stuff.image}.png`,
+                    },
+                  ],
+                })
+                await publicMessage.react('🔥')
+                await publicMessage.react(stuff.emoji)
+              } catch (error) {
+                logger.error('Error sending public message:', error)
+                // Don't throw here as the main interaction was already handled successfully
+              }
+            }
           } else {
             // Fallback to old system if no fish in database
-            const thing = randomThing()
+            const thing = getStuff('000')
             await buttonInteraction.update({
               content: `🎉 **Congratulations!** You caught a ${thing.name}!\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`,
               components: [],
@@ -167,7 +187,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
         } catch (error) {
           logger.error('Error handling fish catch:', error)
           // Fallback to old system on error
-          const thing = randomThing()
+          const thing = getStuff('000')
           await buttonInteraction.update({
             content: `🎉 **Congratulations!** You caught a ${thing.name}!\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`,
             components: [],
@@ -178,7 +198,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
         // Move to next number
         // const currentTimeRemaining = fishingEventManager.getFormattedTimeRemaining(interaction.guildId!)
         await buttonInteraction.update({
-          content: `🎣 Great throw, watch out, fish is naughty, carefully catch it rhytm!\n\n_Your task is **press the number** shown below in sequence\nFaster press, rarer fish!_\n\nProgress: ██░░░░░░░░ ${currentIndex}/${targetNumbers.length}\nPress the number: ${targetNumbers[currentIndex]}`,
+          content: `🎣 Great throw, watch out, fish is naughty, carefully catch it rhytm!\n\n_Your task is **press the number** shown below in sequence\nFaster press, rarer fish!_\n\nProgress: ${currentIndex}/${targetNumbers.length}\nPress the number: ${targetNumbers[currentIndex]}`,
           components: [
             {
               type: ComponentType.ActionRow,
@@ -194,35 +214,8 @@ export default async (interaction: ChatInputCommandInteraction) => {
           targetNumbers[currentIndex]
         }\n\nThe sequence was: ${targetNumbers.join(' → ')}\nTry again!`,
         components: [],
-        embeds: [
-          {
-            color: RODS[0].color,
-            title: `Your Rod`,
-            fields: [
-              {
-                name: '🎣 Rod',
-                value: `BALD`,
-                inline: true,
-              },
-              {
-                name: '% Rate',
-                value: `80%`,
-                inline: true,
-              },
-              {
-                name: '⌛ Uses',
-                value: `3/5`,
-                inline: true,
-              },
-            ],
-          },
-          {
-            color: RODS[0].color,
-            title: `Your Bag`,
-            description: `Midas - 1\nKoi - 0\nAnchovy - 0\nMedis - 0\nZebra King - 0\nMonster - 0`,
-          },
-        ],
       })
+      await handleUserCatch(interaction.user.id, userRate, null, interaction.guildId, interaction.channelId)
       collector.stop('failed')
     }
   })
@@ -235,57 +228,4 @@ export default async (interaction: ChatInputCommandInteraction) => {
       })
     }
   })
-}
-
-const getObjects = () => [
-  {
-    type: 'object',
-    name: 'Boots',
-    description: 'Who threw the boots?',
-    weight: 1,
-  },
-  {
-    type: 'object',
-    name: 'Pan',
-    description: "Is that Pomodoro's pan?",
-    weight: 1,
-  },
-  {
-    type: 'object',
-    name: 'Moss',
-    description: 'Can I eat that?',
-    weight: 1,
-  },
-]
-
-const getFish = () => [
-  {
-    type: 'fish',
-    name: 'Salmon',
-    description: 'A delicious fish that is a great source of protein.',
-    weight: 10,
-  },
-  {
-    type: 'fish',
-    name: 'Tuna',
-    description: 'A delicious fish that is a great source of protein.',
-    weight: 20,
-  },
-  {
-    type: 'fish',
-    name: 'Shrimp',
-    description: 'A delicious fish that is a great source of protein.',
-    weight: 30,
-  },
-  {
-    type: 'fish',
-    name: 'Crab',
-    description: 'A delicious fish that is a great source of protein.',
-    weight: 40,
-  },
-]
-
-const randomThing = () => {
-  const things = [...getObjects(), ...getFish()]
-  return things[Math.floor(Math.random() * things.length)]
 }

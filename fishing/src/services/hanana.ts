@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from 'drizzle-orm'
+import { eq, inArray, sql, like, and } from 'drizzle-orm'
 import { db } from '../libs/database'
 import { hanana, hananaParticipants, users } from '../schema'
 
@@ -58,12 +58,12 @@ export async function getActiveFishingEvent(guildId: string, channelId: string) 
   return await db
     .select()
     .from(hanana)
-    .where(sql`${hanana.id} LIKE '${guildId}_${channelId}_%' AND ${hanana.status} IN ('pending', 'active')`)
+    .where(and(like(hanana.id, `${guildId}_${channelId}_%`), inArray(hanana.status, ['pending', 'active'])))
     .get()
 }
 
 // Add participant to fishing event using junction table
-export async function addParticipant(eventId: string, userIds: string[]) {
+export async function addParticipant(eventId: string, userIds: string[], rods: string[]) {
   console.log('[DB][👤] Adding participants', eventId, userIds)
 
   // Check if event exists
@@ -89,9 +89,11 @@ export async function addParticipant(eventId: string, userIds: string[]) {
   }
 
   // Insert new participants
-  const participantRecords = newUserIds.map((userId) => ({
+  const participantRecords = newUserIds.map((userId, index) => ({
     hananaId: eventId,
     userId: userId,
+    rod: rods[index],
+    uses: 0,
   }))
 
   await db.insert(hananaParticipants).values(participantRecords)
@@ -112,9 +114,7 @@ export async function removeParticipant(eventId: string, userId: string) {
   }
 
   // Remove participant from junction table
-  const result = await db
-    .delete(hananaParticipants)
-    .where(sql`${hananaParticipants.hananaId} = ${eventId} AND ${hananaParticipants.userId} = ${userId}`)
+  const result = await db.delete(hananaParticipants).where(and(eq(hananaParticipants.hananaId, eventId), eq(hananaParticipants.userId, userId)))
 
   console.log('[DB][✅] Participant removed', { removedUser: userId })
 
@@ -145,10 +145,10 @@ export async function getParticipantsWithDetails(eventId: string) {
 
 // Check if user is participant
 export async function isParticipant(eventId: string, userId: string): Promise<boolean> {
-  const participant = db
+  const participant = await db
     .select()
     .from(hananaParticipants)
-    .where(sql`${hananaParticipants.hananaId} = ${eventId} AND ${hananaParticipants.userId} = ${userId}`)
+    .where(and(eq(hananaParticipants.hananaId, eventId), eq(hananaParticipants.userId, userId)))
     .get()
 
   return !!participant
@@ -156,7 +156,7 @@ export async function isParticipant(eventId: string, userId: string): Promise<bo
 
 // Get participant count for an event
 export async function getParticipantCount(eventId: string): Promise<number> {
-  const result = db
+  const result = await db
     .select({ count: sql<number>`count(*)` })
     .from(hananaParticipants)
     .where(eq(hananaParticipants.hananaId, eventId))
@@ -213,10 +213,10 @@ export async function nuke() {
     .where(inArray(hanana.status, ['pending', 'active']))
 
   // Clear participants for all active events
-  if (activeEvents.length > 0) {
-    const eventIds = activeEvents.map((e) => e.id)
-    await db.delete(hananaParticipants).where(inArray(hananaParticipants.hananaId, eventIds))
-  }
+  // if (activeEvents.length > 0) {
+  //   const eventIds = activeEvents.map((e) => e.id)
+  //   await db.delete(hananaParticipants).where(inArray(hananaParticipants.hananaId, eventIds))
+  // }
 
   // Batch change status to ended
   await db
@@ -225,4 +225,47 @@ export async function nuke() {
     .where(inArray(hanana.status, ['pending', 'active']))
 
   console.log('[DB][✅] All events nuked and participants cleared')
+}
+
+export const getUserRod = async (guildId: string, channelId: string, userId: string) => {
+  const activeEvent = await db
+    .select()
+    .from(hanana)
+    .where(and(like(hanana.id, `${guildId}_${channelId}_%`), eq(hanana.status, 'active')))
+    .get()
+
+  if (!activeEvent) {
+    throw new Error('There is no happening Fishing event!')
+  }
+
+  const user = await db
+    .select()
+    .from(hananaParticipants)
+    .where(and(eq(hananaParticipants.hananaId, activeEvent.id), eq(hananaParticipants.userId, userId)))
+    .get()
+
+  if (!user || !user.rod) {
+    throw new Error('You are not join the event, wait for the event to start')
+  }
+
+  return {
+    rod: user.rod,
+    uses: user.uses,
+  }
+}
+
+export const endActiveEvent = async (guildId: string, channelId: string) => {
+  const activeEvent = await db
+    .select()
+    .from(hanana)
+    .where(and(like(hanana.id, `${guildId}_${channelId}_%`), eq(hanana.status, 'active')))
+    .get()
+
+  if (!activeEvent) {
+    throw new Error('There is no happening Fishing event!')
+  }
+
+  await db.update(hanana).set({ status: 'ended' }).where(eq(hanana.id, activeEvent.id))
+
+  return activeEvent
 }

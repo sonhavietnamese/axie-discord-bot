@@ -1,6 +1,7 @@
 import { ChannelType, ChatInputCommandInteraction, GuildTextBasedChannel } from 'discord.js'
 import { createCommandConfig, Flashcore, logger } from 'robo.js'
 import { EVENT_DURATION, STORAGE_KEYS } from '../../constants'
+import { randomPlayer } from '../../libs/nft'
 import { assignRod, computeCDNUrl, isAdmin, isWhitelisted, require } from '../../libs/utils'
 import { addParticipant, createFishingEvent, nuke, startFishingEvent } from '../../services/hanana'
 import { batchCreateUsers } from '../../services/user'
@@ -101,6 +102,9 @@ export default async (interaction: ChatInputCommandInteraction) => {
                 const allUsers = [...inserted, ...existing]
 
                 const assignedRods = await assignRod(allUsers, interaction.guild!)
+
+                // TODO: pick the won axie winner
+                randomPlayer(allUsers.map((user) => user.id))
 
                 await addParticipant(
                   createdEvent.id,

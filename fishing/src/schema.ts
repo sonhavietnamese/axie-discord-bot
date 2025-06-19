@@ -22,6 +22,9 @@ export const hananaParticipants = sqliteTable('hanana_participants', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
 
+  rod: text('rod').references(() => rods.id),
+  uses: integer('uses').default(0).notNull(),
+
   joinedAt: text('joined_at')
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
@@ -34,10 +37,8 @@ export const users = sqliteTable('users', {
 
   rates: text('rates').notNull(),
 
-  inventories: integer('inventories')
-    .default(0)
-    .notNull()
-    .references(() => inventories.id),
+  // Store inventory as JSON: { "000": 0, "001": 1, "002": 0, ... }
+  inventory: text('inventory').default('{}').notNull(),
 
   createdAt: text('created_at')
     .default(sql`CURRENT_TIMESTAMP`)
@@ -45,22 +46,6 @@ export const users = sqliteTable('users', {
   updatedAt: text('updated_at')
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
-})
-
-export const inventories = sqliteTable('inventories', {
-  id: text('id').primaryKey(),
-  fishes: integer('fishes')
-    .default(0)
-    .notNull()
-    .references(() => fishes.id),
-  trash: integer('trash')
-    .default(0)
-    .notNull()
-    .references(() => trashes.id),
-  nfts: integer('nfts')
-    .default(0)
-    .notNull()
-    .references(() => nfts.id),
 })
 
 export const fishes = sqliteTable('fishes', {
@@ -87,3 +72,6 @@ export type NewHanana = typeof hanana.$inferInsert
 
 export type HananaParticipant = typeof hananaParticipants.$inferSelect
 export type NewHananaParticipant = typeof hananaParticipants.$inferInsert
+
+// Type for inventory JSON structure
+export type Inventory = Record<string, number>

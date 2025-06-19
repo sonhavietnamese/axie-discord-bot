@@ -31,7 +31,11 @@ export type FishingEventHappening = {
   status: FishingEventStatus
 }
 
-export const UNDERWATER_TYPES = ['fish', 'trash', 'nft'] as const
+export const UNDERWATER_TYPES = {
+  FISH: 'fish',
+  TRASH: 'trash',
+  NFT: 'nft',
+} as const
 
 export const FISH_RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary'] as const
 

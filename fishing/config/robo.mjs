@@ -10,5 +10,3 @@ export default {
   plugins: [],
   type: 'robo',
 }
-
-687195088960

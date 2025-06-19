@@ -1,42 +1,44 @@
 export const RANKS = {
   COMMON: {
-    id: '001',
+    id: 'common',
     name: 'Common',
     color: 0x416ec7,
   },
   EPIC: {
-    id: '002',
+    id: 'epic',
     name: 'Epic',
     color: 0x487e9a,
   },
   LEGENDARY: {
-    id: '003',
+    id: 'legendary',
     name: 'Legendary',
     color: 0xcb5223,
   },
   MYTHIC: {
-    id: '004',
+    id: 'mythic',
     name: 'Mythic',
     color: 0xfe1000,
   },
   SUPREME: {
-    id: '005',
+    id: 'supreme',
     name: 'Supreme',
     color: 0xa7bdcb,
   },
   MONSTER: {
-    id: '006',
-    name: 'Monster',
+    id: 'monster',
+    name: '%$#@',
     color: 0x0e1e6e,
   },
   USELESS: {
-    id: '007',
+    id: 'useless',
     name: 'Useless',
     color: 0xb07652,
   },
   NFT: {
-    id: '008',
+    id: 'nft',
     name: 'NFT',
     color: 0x47fddd,
   },
-}
+} as const
+
+export type Rank = [keyof typeof RANKS]

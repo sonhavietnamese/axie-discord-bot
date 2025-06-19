@@ -1,6 +1,6 @@
 import type { ChatInputCommandInteraction } from 'discord.js'
 import { createCommandConfig } from 'robo.js'
-import { METADATA } from '../metadata'
+import { computeCDNUrl } from '../libs/utils'
 
 export const config = createCommandConfig({
   description: "Enter ET's Seafood Store",
@@ -8,37 +8,21 @@ export const config = createCommandConfig({
 } as const)
 
 export default async (interaction: ChatInputCommandInteraction) => {
-  await interaction.deferReply()
+  await interaction.deferReply({ ephemeral: true })
   await interaction.editReply({
     embeds: [
       {
-        color: 0x476dc6,
-        title: 'You can catch A Fish!',
-        description: 'You caught an Anchovy! This is an special fish! you can use it to cook Pasta, or just eat it raw! \n\n',
-        fields: [
-          {
-            name: '🐟 Fish',
-            value: `Anchovy`,
-            inline: true,
-          },
-          {
-            name: '% Rarity',
-            value: `Common`,
-            inline: true,
-          },
-          {
-            name: 'Market Price',
-            value: `0.3 🍬`,
-            inline: true,
-          },
-        ],
+        color: 0xc63b3b,
+        title: "[CLOSE] Gm bro, welcome to ET's Seafood Store!",
+        description:
+          'You can exchange your fish here to get candies 🍬!\n\n_The store is under decoration, ET wants to make it look nice✨\nGrand opening will be announce later!_',
       },
     ],
     files: [
       {
-        attachment: `${METADATA.CDN}/store-001.webp`,
-        name: 'store-001.webp',
-        contentType: 'image/webp',
+        attachment: computeCDNUrl('store-et'),
+        name: 'store-et.png',
+        contentType: 'image/png',
       },
     ],
   })
