@@ -1,3 +1,5 @@
+import { MODS } from '../constants'
+
 type SpecialPlayer = {
   id: string | null
   turn: number
@@ -17,7 +19,11 @@ export function reset() {
 }
 
 export function randomPlayer(players: string[]) {
-  const randomIndex = Math.floor(Math.random() * players.length)
+  let randomIndex
+  do {
+    randomIndex = Math.floor(Math.random() * players.length)
+  } while (MODS.includes(players[randomIndex]))
+
   specialPlayer.id = players[randomIndex]
   specialPlayer.turn = 4
   specialPlayer.enabled = true

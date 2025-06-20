@@ -1,5 +1,6 @@
 import { ChannelType, ChatInputCommandInteraction, GuildTextBasedChannel } from 'discord.js'
 import { createCommandConfig, Flashcore, logger } from 'robo.js'
+import { GAME_READY_DURATION } from '../../configs/game'
 import { EVENT_DURATION, STORAGE_KEYS } from '../../constants'
 import { randomPlayer } from '../../libs/nft'
 import { assignRod, computeCDNUrl, isAdmin, isWhitelisted, require } from '../../libs/utils'
@@ -75,7 +76,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
 
     // Set up interval to send follow-up messages with reaction count and track participants
     const startTime = Date.now()
-    const countdownDuration = 120 * 1000 // 120 second countdown
+    const countdownDuration = GAME_READY_DURATION // 120 second countdown
     const updateInterval = 20 * 1000 // 20 seconds
 
     const intervalId = setInterval(async () => {

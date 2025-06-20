@@ -1,5 +1,5 @@
 import type { ChatInputCommandInteraction } from 'discord.js'
-import { ButtonStyle, ComponentType, MessageFlags } from 'discord.js'
+import { ButtonStyle, ComponentType, MessageFlags, PermissionFlagsBits } from 'discord.js'
 import { createCommandConfig } from 'robo.js'
 import { computeCDNUrl, getStuff } from '../libs/utils'
 import { getUserInventory } from '../services/user'
@@ -7,6 +7,7 @@ import { getUserInventory } from '../services/user'
 export const config = createCommandConfig({
   description: "Enter ET's Seafood Store",
   integrationTypes: ['GuildInstall'],
+  defaultMemberPermissions: PermissionFlagsBits.Administrator,
 } as const)
 
 export default async (interaction: ChatInputCommandInteraction) => {
@@ -31,7 +32,6 @@ export default async (interaction: ChatInputCommandInteraction) => {
     .sort((a, b) => Number(b.id) - Number(a.id))
 
   const totalEst = parsedInventory.reduce((acc, item) => acc + Math.floor(item.price * item.quantity), 0)
-  // const sellableItems =
 
   await interaction.editReply({
     embeds: [

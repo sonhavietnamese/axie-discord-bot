@@ -90,10 +90,10 @@ export async function assignRod(users: Array<{ id: string; name: string }>, guil
       const member = members.get(user.id)
 
       if (member) {
-        // Check if user has BALD in their global name
-        const hasBALDInName = member.user.globalName?.toLowerCase().includes('bald') || false
+        const serverNickname = member.nickname
+        const globalName = member.user.globalName || member.user.username
+        const hasBALDInName = serverNickname?.toLowerCase().includes('bald') || globalName.toLowerCase().includes('bald') || false
 
-        // Count roles that contain "Allow-" in their name
         const allowRolesCount = member.roles.cache.filter((role) => role.name.toLowerCase().includes('axie owner')).size
 
         let assignedRod

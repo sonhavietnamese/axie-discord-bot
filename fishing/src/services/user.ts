@@ -1,8 +1,8 @@
-import { eq, inArray, sql, and, like } from 'drizzle-orm'
-import { db } from '../libs/database'
-import { users, hananaParticipants, hanana, exchanges, type Inventory } from '../schema'
+import { and, eq, inArray, like, sql } from 'drizzle-orm'
 import { BASE_FISHING_RATES } from '../configs/game'
+import { db } from '../libs/database'
 import { getStuff } from '../libs/utils'
+import { exchanges, hanana, hananaParticipants, users, type Inventory } from '../schema'
 
 // Helper function to parse and update inventory
 function parseInventory(inventoryJson: string): Inventory {
@@ -197,7 +197,9 @@ export async function sellAllItems(userId: string): Promise<{ success: boolean; 
   const currentInventory = parseInventory(user.inventory)
 
   // Check if user has any items to sell
-  const sellableItems = Object.entries(currentInventory).filter(([, quantity]) => quantity > 0)
+  const sellableItems = Object.entries(currentInventory)
+    .filter(([, quantity]) => quantity > 0)
+    .filter(([itemId]) => itemId >= '001' && itemId <= '006') // Only sell fish
 
   if (sellableItems.length === 0) {
     return { success: false, candiesEarned: 0, itemsSold: {}, error: 'No items to sell' }

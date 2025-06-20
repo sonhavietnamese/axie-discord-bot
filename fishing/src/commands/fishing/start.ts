@@ -5,6 +5,7 @@ import { assignRod, computeCDNUrl, isAdmin, isWhitelisted, require } from '../..
 import { addParticipant, createFishingEvent, nuke, startFishingEvent } from '../../services/hanana'
 import { batchCreateUsers } from '../../services/user'
 import { FishingEventHappening, FishingEventStatus } from '../../types'
+import { GAME_READY_DURATION } from '../../configs/game'
 
 export const config = createCommandConfig({
   description: 'Start the fishing event',
@@ -40,7 +41,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
       '2. `/inventory` - View your inventory!\n' +
       '3. `/rod` - View your rod!\n' +
       "4. `/et-store` - Go to the ET's Seafood Store!\n\n" +
-      '⏰ Event starts in 120 seconds...',
+      `⏰ Event starts in ${GAME_READY_DURATION / 1000} seconds...`,
     files: [
       {
         attachment: computeCDNUrl('thumbnail-001'),
@@ -70,11 +71,12 @@ export default async (interaction: ChatInputCommandInteraction) => {
         }
       }
       await response.react('🎣')
+      await response.react('<a:ooooooooooooo:1385193747268112455>')
     }
 
     // Set up interval to send follow-up messages with reaction count and track participants
     const startTime = Date.now()
-    const countdownDuration = 120 * 1000 // 120 seconds countdown
+    const countdownDuration = GAME_READY_DURATION // 120 seconds countdown
     const updateInterval = 20 * 1000 // 5 seconds
 
     const intervalId = setInterval(async () => {
