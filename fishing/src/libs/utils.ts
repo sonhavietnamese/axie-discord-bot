@@ -92,7 +92,12 @@ export async function assignRod(users: Array<{ id: string; name: string }>, guil
       if (member) {
         const serverNickname = member.nickname
         const globalName = member.user.globalName || member.user.username
-        const hasBALDInName = serverNickname?.toLowerCase().includes('bald') || globalName.toLowerCase().includes('bald') || false
+        const hasBALDInName =
+          serverNickname?.toLowerCase().includes('bald') ||
+          globalName.toLowerCase().includes('bald') ||
+          serverNickname?.toLowerCase().includes('ᵇᵃˡᵈ') ||
+          globalName.toLowerCase().includes('ᵇᵃˡᵈ') ||
+          false
 
         const allowRolesCount = member.roles.cache.filter((role) => role.name.toLowerCase().includes('axie owner')).size
 
