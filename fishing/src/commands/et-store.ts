@@ -37,8 +37,12 @@ export default async (interaction: ChatInputCommandInteraction) => {
     embeds: [
       {
         color: 0xc63b3b,
-        title: "Gm bro, welcome to ET's Seafood Store!",
-        description: 'You can exchange your fish here to get candies 🍬!',
+        title: `${process.env.STORE_STATUS === 'open' ? '[OPEN]' : '[CLOSED]'} Gm bro, welcome to ET's Seafood Store!`,
+        description: `${
+          process.env.STORE_STATUS === 'open'
+            ? 'Store is open, you can sell your fish here to get candies 🍬!'
+            : 'Store is closed, you can not sell your fish here to get candies 🍬!'
+        }`,
       },
       {
         title: 'Your Inventory',
@@ -74,7 +78,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
       },
     ],
     components:
-      totalEst > 0
+      totalEst > 0 && process.env.STORE_STATUS === 'open'
         ? [
             {
               type: ComponentType.ActionRow,

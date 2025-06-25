@@ -109,13 +109,11 @@ export default async (interaction: ChatInputCommandInteraction) => {
       }
       // Clean up session
       fishingSessions.delete(sessionKey)
-    }, 60000), // 60 seconds timeout (increased from 30)
+    }, 60000),
   }
 
-  // Store the session
   fishingSessions.set(sessionKey, fishingSession)
 
-  // Create the fishing message
   await interaction.editReply({
     content: `🎣 Great throw, watch out, fish is naughty, carefully catch it rhytm!\n\n_Your task is **press the number** shown below in sequence\nFaster press, rarer fish!_\n\nPress the number: ${targetNumbers[currentIndex]}`,
     components: [
