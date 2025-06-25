@@ -1,18 +1,8 @@
-import { ChannelType, ChatInputCommandInteraction, ComponentType, MessageFlags } from 'discord.js'
+import { ChannelType, ChatInputCommandInteraction, ComponentType } from 'discord.js'
 import { createCommandConfig, logger } from 'robo.js'
-import { NFTs } from '../configs/nfts'
 import { RODS } from '../configs/rods'
-import { specialPlayer } from '../libs/nft'
-import {
-  catchUnderwaterStuff,
-  computeCDNUrl,
-  createButtonsWithDistraction,
-  generateRandomNumbers,
-  getStuff,
-  isWhitelisted,
-  randomInRange,
-  require,
-} from '../libs/utils'
+import { createSessionKey, fishingSessions } from '../events/interactionCreate'
+import { createButtonsWithDistraction, generateRandomNumbers, isWhitelisted, require } from '../libs/utils'
 import { getUserRod } from '../services/hanana'
 import { getUserRate, handleUserCatch } from '../services/user'
 
@@ -33,6 +23,15 @@ export default async (interaction: ChatInputCommandInteraction) => {
     return
   }
 
+  // Check if user already has an active fishing session
+  const sessionKey = createSessionKey(interaction.user.id, interaction.channelId)
+  if (fishingSessions.has(sessionKey)) {
+    await interaction.editReply({
+      content: '🎣 **You already have an active fishing session!** Complete your current session first.',
+    })
+    return
+  }
+
   // TODO: Check if user has joined the fishing event and has a rod
   let assignedRod: { rod: string; uses: number } | undefined = undefined
 
@@ -43,7 +42,6 @@ export default async (interaction: ChatInputCommandInteraction) => {
       await interaction.editReply({
         content: error.message,
       })
-
       return
     }
   }
@@ -82,11 +80,43 @@ export default async (interaction: ChatInputCommandInteraction) => {
   }
 
   // Generate random numbers for this game
-  const targetNumbers = generateRandomNumbers(randomInRange(3, 7))
+  const targetNumbers = generateRandomNumbers(3)
   let currentIndex = 0
 
+  // Create fishing session
+  const fishingSession = {
+    userId: interaction.user.id,
+    channelId: interaction.channelId,
+    guildId: interaction.guildId!,
+    targetNumbers,
+    currentIndex,
+    userRate,
+    configuredRod,
+    assignedRod,
+    originalInteraction: interaction,
+    startTime: Date.now(),
+    timeout: setTimeout(async () => {
+      // Handle timeout
+      try {
+        await interaction.editReply({
+          content: `⏰ **Time's up!** The fish got away.\n\nThe sequence was: ${targetNumbers.join(' → ')}`,
+          components: [],
+        })
+        // Record the failed attempt
+        await handleUserCatch(interaction.user.id, userRate, null, interaction.guildId, interaction.channelId)
+      } catch (timeoutError) {
+        logger.error('Error handling fishing timeout:', timeoutError)
+      }
+      // Clean up session
+      fishingSessions.delete(sessionKey)
+    }, 60000), // 60 seconds timeout (increased from 30)
+  }
+
+  // Store the session
+  fishingSessions.set(sessionKey, fishingSession)
+
   // Create the fishing message
-  const fishingMessage = await interaction.editReply({
+  await interaction.editReply({
     content: `🎣 Great throw, watch out, fish is naughty, carefully catch it rhytm!\n\n_Your task is **press the number** shown below in sequence\nFaster press, rarer fish!_\n\nPress the number: ${targetNumbers[currentIndex]}`,
     components: [
       {
@@ -94,168 +124,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
         components: createButtonsWithDistraction(),
       },
     ],
-
-    // ephemeral: true,
-    // fetchReply: true,
   })
 
-  // Create a button collector
-  const collector = fishingMessage.createMessageComponentCollector({
-    componentType: ComponentType.Button,
-    time: 30_000, // 20 seconds timeout
-  })
-
-  collector.on('collect', async (buttonInteraction) => {
-    const pressedNumber = parseInt(buttonInteraction.customId.split('_')[1])
-
-    if (pressedNumber === targetNumbers[currentIndex]) {
-      currentIndex++
-
-      if (currentIndex >= targetNumbers.length) {
-        // Player completed all numbers - handle the completion
-        let updateData: any = null
-        let publicMessageData: any = null
-
-        try {
-          // Get a random fish from database
-          let caughtStuff: { id: string; newRates: number[] } | undefined = undefined
-
-          if (specialPlayer.enabled && specialPlayer.id === interaction.user.id && specialPlayer.turn === assignedRod.uses) {
-            caughtStuff = {
-              id: NFTs[0].id,
-              newRates: userRate,
-            }
-          }
-
-          if (!caughtStuff) {
-            caughtStuff = catchUnderwaterStuff(userRate, configuredRod?.multiplier || [])
-          }
-
-          if (caughtStuff) {
-            const stuff = getStuff(caughtStuff.id)
-
-            // Do database operations BEFORE preparing the interaction update
-            await handleUserCatch(interaction.user.id, caughtStuff.newRates, caughtStuff.id, interaction.guildId, interaction.channelId)
-
-            // Prepare the message content
-            const isTrash = stuff.rank.name.toUpperCase() === 'USELESS'
-            const message = isTrash
-              ? `🎉 **Not bad!** You caught ${stuff.name}!\n\n**Rarity:** ${stuff.rank.name}\n**Thing:** ${
-                  stuff.name
-                }\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}\n\n_You can use it to throw at <@852110112264945704>!_`
-              : `🎉 **Congratulations!** You caught a ${stuff.name}!\n\n**Rarity:** ${stuff.rank.name}\n**Fish:** ${stuff.name}\n\n**About**: ${
-                  stuff.description
-                }\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`
-
-            // Prepare update data
-            updateData = {
-              content: message,
-              components: [],
-              files: [
-                {
-                  attachment: computeCDNUrl(stuff.image),
-                  name: `${stuff.image}.png`,
-                },
-              ],
-            }
-
-            // Prepare public message data if it's a rare catch
-            if (interaction.channel && 'send' in interaction.channel && ['supreme', 'monster', 'mythic', 'nft'].includes(stuff.rank.id)) {
-              publicMessageData = {
-                content: `🎣 **${interaction.user} caught a ${stuff.name}!**\n\n🐟 **Rarity:** ${stuff.rank.name}\n\n**About**: ${stuff.description}\n\n _Reaction to share the luck_ `,
-                files: [
-                  {
-                    attachment: computeCDNUrl(stuff.image),
-                    name: `${stuff.image}.png`,
-                  },
-                ],
-                emoji: stuff.emoji,
-              }
-            }
-          } else {
-            // Fallback if no fish in database
-            const thing = getStuff('000')
-            updateData = {
-              content: `🎉 **Congratulations!** You caught a ${thing.name}!\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`,
-              components: [],
-            }
-          }
-        } catch (error) {
-          logger.error('Error handling fish catch:', error)
-          // Prepare fallback update data
-          const thing = getStuff('000')
-          updateData = {
-            content: `🎉 **Something went wrong, but you still caught a ${
-              thing.name
-            }!**\n\nYou successfully pressed all numbers: ${targetNumbers.join(' → ')}`,
-            components: [],
-          }
-        }
-
-        // Now update the interaction ONCE with the prepared data
-        try {
-          await buttonInteraction.update(updateData)
-        } catch (updateError) {
-          logger.error('Error updating button interaction:', updateError)
-          // If update fails, the interaction might have expired - don't try again
-        }
-
-        // Send public message if prepared (this happens after interaction is updated)
-        if (publicMessageData && interaction.channel && 'send' in interaction.channel) {
-          try {
-            const publicMessage = await interaction.channel.send({
-              content: publicMessageData.content,
-              files: publicMessageData.files,
-            })
-            await publicMessage.react('🔥')
-            await publicMessage.react(publicMessageData.emoji)
-          } catch (error) {
-            logger.error('Error sending public message:', error)
-            // This is non-critical, don't throw
-          }
-        }
-        collector.stop('completed')
-      } else {
-        // Move to next number
-        try {
-          await buttonInteraction.update({
-            content: `🎣 Great throw, watch out, fish is naughty, carefully catch it rhytm!\n\n_Your task is **press the number** shown below in sequence\nFaster press, rarer fish!_\n\nProgress: ${currentIndex}/${targetNumbers.length}\nPress the number: ${targetNumbers[currentIndex]}`,
-            components: [
-              {
-                type: ComponentType.ActionRow,
-                components: createButtonsWithDistraction(),
-              },
-            ],
-          })
-        } catch (updateError) {
-          logger.error('Error updating interaction for next number:', updateError)
-          collector.stop('error')
-        }
-      }
-    } else {
-      // Wrong number pressed
-      try {
-        await buttonInteraction.update({
-          content: `❌❌ **Ehhhh, You missed the rhytm, fish got away!**\n\nYou pressed ${pressedNumber} but needed ${
-            targetNumbers[currentIndex]
-          }\n\nThe sequence was: ${targetNumbers.join(' → ')}\nTry again!`,
-          components: [],
-        })
-        await handleUserCatch(interaction.user.id, userRate, null, interaction.guildId, interaction.channelId)
-        collector.stop('failed')
-      } catch (updateError) {
-        logger.error('Error updating interaction for wrong number:', updateError)
-        collector.stop('error')
-      }
-    }
-  })
-
-  // collector.on('end', (collected, reason) => {
-  //   if (reason === 'time') {
-  //     interaction.editReply({
-  //       content: `⏰ **Time's up!** The fish got away.\n\nThe sequence was: ${targetNumbers.join(' → ')}`,
-  //       components: [],
-  //     })
-  //   }
-  // })
+  logger.info(`Started fishing session for ${interaction.user.username} (${interaction.user.id}) in ${interaction.guildId}/${interaction.channelId}`)
 }

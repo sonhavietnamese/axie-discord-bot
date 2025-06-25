@@ -37,7 +37,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
     embeds: [
       {
         color: 0xc63b3b,
-        title: "[CLOSE] Gm bro, welcome to ET's Seafood Store!",
+        title: "Gm bro, welcome to ET's Seafood Store!",
         description: 'You can exchange your fish here to get candies 🍬!',
       },
       {

@@ -17,7 +17,7 @@ export const FISHES = [
     rank: RANKS.EPIC,
     image: 'fish-002',
     description: 'Puffer is a Dopamine Ball of the ocean. Dont make it mad, he will explode!',
-    price: 0.5,
+    price: 1 / 3,
     emoji: '<:002:1384889024941916210>',
   },
   {
@@ -26,7 +26,7 @@ export const FISHES = [
     rank: RANKS.LEGENDARY,
     image: 'fish-003',
     description: 'Who hit him hard?',
-    price: 1,
+    price: 1 / 2,
     emoji: '<:003:1384889045674492048>',
   },
   {
@@ -35,7 +35,7 @@ export const FISHES = [
     rank: RANKS.MYTHIC,
     image: 'fish-004',
     description: 'Koi fish are vibrant, graceful swimmers that bring good fortune and serenity.',
-    price: 2,
+    price: 1,
     emoji: '<:004:1384889035155181772>',
   },
   {
