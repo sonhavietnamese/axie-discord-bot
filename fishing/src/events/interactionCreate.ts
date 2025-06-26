@@ -139,19 +139,19 @@ export default async (interaction: Interaction) => {
               files: [
                 {
                   attachment: computeCDNUrl(stuff.image),
-                  name: `${stuff.image}.png`,
+                  name: `${stuff.image}.webp`,
                 },
               ],
             }
 
             // Prepare public message for rare catches
-            if (interaction.channel && 'send' in interaction.channel && ['supreme', 'monster', 'mythic', 'nft'].includes(stuff.rank.id)) {
+            if (interaction.channel && 'send' in interaction.channel && ['supreme', 'monster', 'nft'].includes(stuff.rank.id)) {
               publicMessageData = {
                 content: `🎣 **${interaction.user} caught a ${stuff.name}!**\n\n🐟 **Rarity:** ${stuff.rank.name}\n\n**About**: ${stuff.description}\n\n _Reaction to share the luck_ `,
                 files: [
                   {
                     attachment: computeCDNUrl(stuff.image),
-                    name: `${stuff.image}.png`,
+                    name: `${stuff.image}.webp`,
                   },
                 ],
               }
@@ -347,9 +347,9 @@ export default async (interaction: Interaction) => {
         ],
         files: [
           {
-            attachment: computeCDNUrl('store-et'),
-            name: 'store-et.png',
-            contentType: 'image/png',
+            attachment: computeCDNUrl('store-001'),
+            name: 'store-001.webp',
+            contentType: 'image/webp',
           },
         ],
       })

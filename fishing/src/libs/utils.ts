@@ -9,12 +9,29 @@ import { ADMINS } from '../core/admin'
 import { METADATA } from '../metadata'
 import type { Inventory } from '../schema'
 
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+const store001 = fs.readFileSync(path.join(__dirname, '..', 'assets', 'store-001.webp'))
+
+// export function computeCDNUrl(asset: string) {
+//   if (asset.startsWith('/')) {
+//     return `${METADATA.CDN}${asset}.png`
+//   }
+
+//   return `${METADATA.CDN}/${asset}.png`
+// }
+
 export function computeCDNUrl(asset: string) {
   if (asset.startsWith('/')) {
-    return `${METADATA.CDN}${asset}.png`
+    return fs.readFileSync(path.join(__dirname, '..', 'assets', `${asset}.webp`))
   }
 
-  return `${METADATA.CDN}/${asset}.png`
+  return fs.readFileSync(path.join(__dirname, '..', 'assets', `${asset}.webp`))
 }
 
 export function isAdmin(userId: string) {

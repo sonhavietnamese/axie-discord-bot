@@ -54,7 +54,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
   await Flashcore.set<FishingEventHappening>(STORAGE_KEYS.HAPPENING, {
     channelId: interaction.channelId,
     startTime: Date.now(),
-    endTime: Date.now() + EVENT_DURATION, // 10 minutes
+    endTime: Date.now() + EVENT_DURATION,
     status: FishingEventStatus.PENDING,
   })
 
@@ -77,7 +77,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
     // Set up interval to send follow-up messages with reaction count and track participants
     const startTime = Date.now()
     const countdownDuration = GAME_READY_DURATION // 120 seconds countdown
-    const updateInterval = 20 * 1000 // 5 seconds
+    const updateInterval = 20 * 1000 // 20 seconds
 
     const intervalId = setInterval(async () => {
       try {
@@ -148,16 +148,15 @@ export default async (interaction: ChatInputCommandInteraction) => {
           return
         }
 
-        // const updatedMessage = await channel.messages.fetch(response.resource?.message?.id || '')
-        // const fishingReaction = updatedMessage.reactions.cache.get('🎣')
-        // const reactionCount = fishingReaction ? fishingReaction.count - 1 : 0 // Subtract 1 for the bot's reaction
+        const updatedMessage = await channel.messages.fetch(response.id)
+        const fishingReaction = updatedMessage.reactions.cache.get('🎣')
+        const reactionCount = fishingReaction ? fishingReaction.count - 1 : 0
 
-        // Send follow-up with current participant count
-        // await interaction.followUp({
-        //   content: `🎣 **Fishing Event Update:** ${reactionCount} ${
-        //     reactionCount === 1 ? 'angler has' : 'anglers have'
-        //   } joined the fishing event! React with 🎣 to participate!`,
-        // })
+        await interaction.followUp({
+          content: `🎣 **Fishing Event Update:** ${reactionCount} ${
+            reactionCount === 1 ? 'angler has' : 'anglers have'
+          } joined the fishing event! React with 🎣 to participate!`,
+        })
       } catch (error) {
         logger.error('Error in fishing event update:', error)
         clearInterval(intervalId)

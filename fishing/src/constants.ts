@@ -7,7 +7,7 @@ export enum STORAGE_KEYS {
   HAPPENING = 'happening',
 }
 
-export const EVENT_DURATION = 10 * 60 * 1000 // 10 minutes
+export const EVENT_DURATION = 15 * 60 * 1000 // 15 minutes
 
 export const CANDIES_MAPPING = {
   '001': 1,

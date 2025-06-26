@@ -1,8 +1,17 @@
 import type { ChatInputCommandInteraction } from 'discord.js'
 import { ButtonStyle, ComponentType, MessageFlags, PermissionFlagsBits } from 'discord.js'
 import { createCommandConfig } from 'robo.js'
-import { computeCDNUrl, getStuff } from '../libs/utils'
+import { getStuff } from '../libs/utils'
 import { getUserInventory } from '../services/user'
+
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+const etStore = fs.readFileSync(path.join(__dirname, '..', 'assets', 'store-001.webp'))
 
 export const config = createCommandConfig({
   description: "Enter ET's Seafood Store",
@@ -72,9 +81,9 @@ export default async (interaction: ChatInputCommandInteraction) => {
     ],
     files: [
       {
-        attachment: computeCDNUrl('store-et'),
-        name: 'store-et.png',
-        contentType: 'image/png',
+        name: 'et-store.webp',
+        contentType: 'image/webp',
+        attachment: etStore,
       },
     ],
     components:
