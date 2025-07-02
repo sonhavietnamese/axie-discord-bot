@@ -1,0 +1,1 @@
+ALTER TABLE `round_users` ADD `candies_won` integer DEFAULT 0 NOT NULL;

@@ -1,0 +1,43 @@
+{
+  "name": "fishing",
+  "description": "",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "======ROBO=======": "",
+    "robo:build": "rm -rf dist && rm -rf .robo && robo build",
+    "robo:deploy": "robo deploy",
+    "robo:dev": "robox dev",
+    "robo:doctor": "sage doctor",
+    "robo:invite": "robo invite",
+    "robo:start": "robo start",
+    "robo:upgrade": "sage upgrade",
+    "======BUN======": "",
+    "dev": "export NODE_ENV=development && bun --bun run robo:dev --mode development",
+    "prod": "export NODE_ENV=production && bun --bun run robo:dev --mode production",
+    "======DB=======": "",
+    "db:seed": "bun run scripts/seed.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit generate && drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "db:nuke": "rm -rf dev.db && rm -Rf drizzle",
+    "db:reset": "bun run db:nuke && bun run db:migrate && bun run db:seed"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "discord.js": "^14.19.3",
+    "drizzle-orm": "^0.44.2",
+    "node-font2base64": "^0.9.2",
+    "node-html-to-image": "^5.0.0",
+    "robo.js": "^0.10.30",
+    "sharp": "^0.34.2"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.7.26",
+    "@types/bun": "^1.2.16",
+    "@types/node": "^22.7.4",
+    "drizzle-kit": "^0.31.1",
+    "typescript": "^5.6.2"
+  }
+}

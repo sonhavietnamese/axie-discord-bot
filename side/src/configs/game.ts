@@ -1,0 +1,1 @@
+export const GAME_READY_DURATION = 20 * 1000
