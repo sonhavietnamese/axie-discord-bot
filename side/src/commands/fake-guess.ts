@@ -1,9 +1,9 @@
 import { type ChatInputCommandInteraction } from 'discord.js'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
 import { createCommandConfig } from 'robo.js'
 import { db } from '../libs/database'
 import { axiesTable, roundsTable, roundUsersTable, usersTable } from '../schema'
-import { randomUUID } from 'node:crypto'
 
 export const config = createCommandConfig({
   description: 'Generate fake guesses for testing',
@@ -86,7 +86,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
     }
 
     const count = Math.min(interaction.options.getNumber('count') || 10, 100) // Cap at 100
-    const correctRate = 0.8
+    const correctRate = 0.6
 
     // Generate fake user data
     const fakeUsers: Array<{ id: string; globalName: string; isCorrect: boolean; guess: string }> = []
@@ -122,7 +122,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
     }))
 
     // Use transaction for atomic operations
-    await db.transaction(async (tx) => {
+    await db.transaction(async (tx: any) => {
       // Batch insert users
       if (userInsertValues.length > 0) {
         // Insert users in chunks to avoid SQL limits

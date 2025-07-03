@@ -50,9 +50,28 @@ export const roundUsersTable = sqliteTable('round_users', {
   candiesWon: integer('candies_won').default(0).notNull(),
 })
 
+// New table to track claimed streak rewards
+export const claimedRewardsTable = sqliteTable('claimed_rewards', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .references(() => usersTable.id)
+    .notNull(),
+  streakRounds: integer('streak_rounds').notNull(), // Number of rounds in the claimed streak
+  streakCandies: integer('streak_candies').notNull(), // Total candies claimed
+  startRoundId: integer('start_round_id').notNull(), // First round of the streak
+  endRoundId: integer('end_round_id').notNull(), // Last round of the streak
+  rewardType: text('reward_type').notNull(), // NFT, Premium Currency, VIP Access
+  rewardDetails: text('reward_details'), // JSON string with reward details
+  claimedAt: text('claimed_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+})
+
 export type Axie = typeof axiesTable.$inferSelect
 export type NewAxie = typeof axiesTable.$inferInsert
 export type User = typeof usersTable.$inferSelect
 export type NewUser = typeof usersTable.$inferInsert
 export type RoundUser = typeof roundUsersTable.$inferSelect
 export type NewRoundUser = typeof roundUsersTable.$inferInsert
+export type ClaimedReward = typeof claimedRewardsTable.$inferSelect
+export type NewClaimedReward = typeof claimedRewardsTable.$inferInsert

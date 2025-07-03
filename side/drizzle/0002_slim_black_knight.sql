@@ -1,1 +1,0 @@
-ALTER TABLE `users` ADD `global_name` text NOT NULL;

@@ -70,6 +70,6 @@ export default async (interaction: ChatInputCommandInteraction) => {
   })
 
   await interaction.editReply({
-    content: 'Nice try! Wait for the result.\n\nLet distract others, less win pepo, more candy you get',
+    content: "Nice try! Wait for the result.\n\nLet distract others, less pepo win, more candies you'll get",
   })
 }
