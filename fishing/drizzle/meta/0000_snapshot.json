@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "501bf4c2-7fb7-4c88-bde2-14c9f7ff66a7",
+  "id": "97d3ae4c-852f-401d-8a97-413b4e69a436",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "exchanges": {
@@ -240,6 +240,55 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "rod_store_interns": {
+      "name": "rod_store_interns",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "server_nickname": {
+          "name": "server_nickname",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "user_name": {
+          "name": "user_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "is_hiring": {
+          "name": "is_hiring",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "rods": {
       "name": "rods",
       "columns": {
@@ -304,7 +353,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'{}'"
+          "default": "'{\"fishes\":{},\"rods\":{}}'"
         },
         "created_at": {
           "name": "created_at",

@@ -28,7 +28,10 @@
     "better-sqlite3": "^11.10.0",
     "discord.js": "^14.19.3",
     "drizzle-orm": "^0.44.2",
-    "robo.js": "^0.10.30"
+    "node-font2base64": "^0.9.2",
+    "node-html-to-image": "^5.0.0",
+    "robo.js": "^0.10.30",
+    "sharp": "^0.34.2"
   },
   "devDependencies": {
     "@swc/core": "^1.7.26",

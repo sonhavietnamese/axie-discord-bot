@@ -2,22 +2,54 @@ import { and, eq, inArray, like, sql } from 'drizzle-orm'
 import { BASE_FISHING_RATES } from '../configs/game'
 import { db } from '../libs/database'
 import { getStuff } from '../libs/utils'
-import { exchanges, hanana, hananaParticipants, users, type Inventory } from '../schema'
+import { exchanges, hanana, hananaParticipants, users, type Inventory, migrateInventory, ensureInventoryStructure } from '../schema'
 
-// Helper function to parse and update inventory
+// Helper function to parse and migrate inventory
 function parseInventory(inventoryJson: string): Inventory {
   try {
-    return JSON.parse(inventoryJson) as Inventory
+    return migrateInventory(inventoryJson)
   } catch {
-    return {}
+    return { fishes: {}, rods: {} }
   }
 }
 
-// Helper function to update item in inventory
-function updateInventoryItem(inventory: Inventory, itemId: string, quantity: number = 1): Inventory {
+// Helper function to update fish item in inventory
+function updateFishInventoryItem(inventory: Inventory, itemId: string, quantity: number = 1): Inventory {
   return {
     ...inventory,
-    [itemId]: (inventory[itemId] || 0) + quantity,
+    fishes: {
+      ...inventory.fishes,
+      [itemId]: (inventory.fishes[itemId] || 0) + quantity,
+    },
+  }
+}
+
+// Helper function to update rod item in inventory
+function updateRodInventoryItem(inventory: Inventory, itemId: string, quantity: number = 1): Inventory {
+  return {
+    ...inventory,
+    rods: {
+      ...inventory.rods,
+      [itemId]: (inventory.rods[itemId] || 0) + quantity,
+    },
+  }
+}
+
+// Helper function to update any item in inventory (auto-detects type)
+function updateInventoryItem(inventory: Inventory, itemId: string, quantity: number = 1, itemType?: 'fish' | 'rod'): Inventory {
+  // Auto-detect item type if not specified
+  if (!itemType) {
+    if (itemId === '000' || (itemId >= '001' && itemId <= '006')) {
+      itemType = 'fish'
+    } else {
+      itemType = 'rod'
+    }
+  }
+
+  if (itemType === 'fish') {
+    return updateFishInventoryItem(inventory, itemId, quantity)
+  } else {
+    return updateRodInventoryItem(inventory, itemId, quantity)
   }
 }
 
@@ -45,7 +77,7 @@ export async function getOrCreateUser(userId: string, username: string) {
       id: userId,
       name: username,
       rates: JSON.stringify(BASE_FISHING_RATES),
-      inventory: '{}', // Start with empty inventory
+      inventory: '{"fishes":{},"rods":{}}', // Start with empty inventory
     })
     .returning()
 
@@ -64,6 +96,20 @@ export async function getUserInventory(userId: string): Promise<Inventory | null
     return null
   }
   return parseInventory(user.inventory)
+}
+
+// Update user's inventory with new inventory object
+export async function updateUserInventory(userId: string, newInventory: Inventory) {
+  // Ensure inventory has proper structure
+  const structuredInventory = ensureInventoryStructure(newInventory)
+
+  return await db
+    .update(users)
+    .set({
+      inventory: JSON.stringify(structuredInventory),
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(users.id, userId))
 }
 
 // Batch insert users, ignoring existing ones (optimized)
@@ -97,7 +143,10 @@ export async function batchCreateUsers(usersToCreate: Array<{ id: string; name: 
     const userValues = newUsers
       .map(
         (user) =>
-          `('${user.id.replace(/'/g, "''")}', '${user.name.replace(/'/g, "''")}', '${defaultRates}', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          `('${user.id.replace(/'/g, "''")}', '${user.name.replace(
+            /'/g,
+            "''",
+          )}', '${defaultRates}', '{"fishes":{},"rods":{}}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       )
       .join(', ')
 
@@ -152,7 +201,7 @@ export async function handleUserCatch(userId: string, rates: number[], stuffId: 
   return db.transaction(async (tx) => {
     // 1. Update user rates and inventory
     const currentInventory = parseInventory(user.inventory)
-    const updatedInventory = stuffId ? updateInventoryItem(currentInventory, stuffId, 1) : currentInventory
+    const updatedInventory = stuffId ? updateInventoryItem(currentInventory, stuffId, 1, 'fish') : currentInventory
 
     await tx
       .update(users)
@@ -191,29 +240,29 @@ export async function sellAllItems(userId: string): Promise<{ success: boolean; 
   const user = await getUser(userId)
 
   if (!user) {
-    return { success: false, candiesEarned: 0, itemsSold: {}, error: 'User not found' }
+    return { success: false, candiesEarned: 0, itemsSold: { fishes: {}, rods: {} }, error: 'User not found' }
   }
 
   const currentInventory = parseInventory(user.inventory)
 
-  // Check if user has any items to sell
-  const sellableItems = Object.entries(currentInventory)
+  // Check if user has any items to sell (only fish)
+  const sellableItems = Object.entries(currentInventory.fishes)
     .filter(([, quantity]) => quantity > 0)
     .filter(([itemId]) => itemId >= '001' && itemId <= '006') // Only sell fish
 
   if (sellableItems.length === 0) {
-    return { success: false, candiesEarned: 0, itemsSold: {}, error: 'No items to sell' }
+    return { success: false, candiesEarned: 0, itemsSold: { fishes: {}, rods: {} }, error: 'No items to sell' }
   }
 
   // Calculate total candies earned
   let totalCandies = 0
-  const itemsSold: Inventory = {}
+  const itemsSold: Inventory = { fishes: {}, rods: {} }
 
   for (const [itemId, quantity] of sellableItems) {
     const stuff = getStuff(itemId)
     const candiesForItem = Math.floor(stuff.price * quantity)
     totalCandies += candiesForItem
-    itemsSold[itemId] = quantity
+    itemsSold.fishes[itemId] = quantity
   }
 
   // Generate unique exchange ID
@@ -230,18 +279,25 @@ export async function sellAllItems(userId: string): Promise<{ success: boolean; 
         status: 'pending',
       })
 
-      // 2. Clear user's inventory (set all quantities to 0)
-      const emptyInventory: Inventory = {}
-      for (const itemId of Object.keys(currentInventory)) {
+      // 2. Clear user's fish inventory (set all quantities to 0)
+      const updatedInventory: Inventory = {
+        fishes: {},
+        rods: currentInventory.rods, // Keep rods intact
+      }
+
+      // Reset only the sold fish items to 0
+      for (const itemId of Object.keys(currentInventory.fishes)) {
         if (itemId >= '001' && itemId <= '006') {
-          emptyInventory[itemId] = 0
+          updatedInventory.fishes[itemId] = 0
+        } else {
+          updatedInventory.fishes[itemId] = currentInventory.fishes[itemId] // Keep non-sellable items
         }
       }
 
       await tx
         .update(users)
         .set({
-          inventory: JSON.stringify(emptyInventory),
+          inventory: JSON.stringify(updatedInventory),
           updatedAt: new Date().toISOString(),
         })
         .where(eq(users.id, userId))
@@ -269,7 +325,7 @@ export async function sellAllItems(userId: string): Promise<{ success: boolean; 
       return {
         success: false,
         candiesEarned: 0,
-        itemsSold: {},
+        itemsSold: { fishes: {}, rods: {} },
         error: 'Transaction failed',
       }
     }

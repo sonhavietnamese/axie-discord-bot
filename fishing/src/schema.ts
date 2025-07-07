@@ -37,8 +37,8 @@ export const users = sqliteTable('users', {
 
   rates: text('rates').notNull(),
 
-  // Store inventory as JSON: { "000": 0, "001": 1, "002": 0, ... }
-  inventory: text('inventory').default('{}').notNull(),
+  // Store inventory as JSON: { "fishes": { "001": 1, "002": 0, ... }, "rods": { "001": 1, "002": 0, ... } }
+  inventory: text('inventory').default('{"fishes":{},"rods":{}}').notNull(),
 
   createdAt: text('created_at')
     .default(sql`CURRENT_TIMESTAMP`)
@@ -85,6 +85,16 @@ export const exchanges = sqliteTable('exchanges', {
     .notNull(),
 })
 
+export const rodStoreIntern = sqliteTable('rod_store_interns', {
+  userId: text('user_id').primaryKey(),
+  serverNickname: text('server_nickname').notNull().default(''),
+  userName: text('user_name').notNull().default(''),
+  isHiring: integer('is_hiring').notNull().default(0), // 0: not hiring, 1: hiring
+  createdAt: text('created_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+})
+
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 
@@ -97,5 +107,63 @@ export type NewHananaParticipant = typeof hananaParticipants.$inferInsert
 export type Exchange = typeof exchanges.$inferSelect
 export type NewExchange = typeof exchanges.$inferInsert
 
-// Type for inventory JSON structure
-export type Inventory = Record<string, number>
+// Type for inventory JSON structure - new nested format
+export type Inventory = {
+  fishes: Record<string, number>
+  rods: Record<string, number>
+}
+
+// Legacy inventory type for backward compatibility
+export type LegacyInventory = Record<string, number>
+
+// Helper function to migrate old inventory format to new format
+export function migrateInventory(inventoryData: string | LegacyInventory | Inventory): Inventory {
+  // If it's a string, parse it first
+  let parsed: any
+  if (typeof inventoryData === 'string') {
+    try {
+      parsed = JSON.parse(inventoryData)
+    } catch {
+      return { fishes: {}, rods: {} }
+    }
+  } else {
+    parsed = inventoryData
+  }
+
+  // If already in new format, return as is
+  if (parsed && typeof parsed === 'object' && 'fishes' in parsed && 'rods' in parsed) {
+    return parsed as Inventory
+  }
+
+  // Convert legacy format to new format
+  const newInventory: Inventory = { fishes: {}, rods: {} }
+
+  if (parsed && typeof parsed === 'object') {
+    for (const [itemId, quantity] of Object.entries(parsed)) {
+      if (typeof quantity === 'number') {
+        // Fish IDs: 000-006 (000 is trash, 001-006 are fish)
+        // Rod IDs: rod-001, rod-002, rod-003 OR 001, 002, 003 (we'll detect context)
+        if (itemId === '000' || (itemId >= '001' && itemId <= '006')) {
+          newInventory.fishes[itemId] = quantity
+        } else if (itemId.startsWith('rod-') || (itemId >= '001' && itemId <= '003')) {
+          // For ambiguous cases (001-003), we'll assume it's fish unless context suggests otherwise
+          // This will be handled case by case in migration
+          newInventory.rods[itemId] = quantity
+        }
+      }
+    }
+  }
+
+  return newInventory
+}
+
+// Helper function to ensure inventory has proper structure
+export function ensureInventoryStructure(inventory: Partial<Inventory>): Inventory {
+  return {
+    fishes: inventory.fishes || {},
+    rods: inventory.rods || {},
+  }
+}
+
+export type RodStoreIntern = typeof rodStoreIntern.$inferSelect
+export type NewRodStoreIntern = typeof rodStoreIntern.$inferInsert

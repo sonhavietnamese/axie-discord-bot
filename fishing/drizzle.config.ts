@@ -5,7 +5,8 @@ export default {
   out: './drizzle',
   dialect: 'sqlite',
   dbCredentials: {
-    url: './dev.db',
+    // url: './dev.db',
+    url: './dev-v002.db',
   },
   verbose: true,
   strict: true,

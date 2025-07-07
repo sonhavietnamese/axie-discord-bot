@@ -35,6 +35,14 @@ CREATE TABLE `nfts` (
 	`id` text PRIMARY KEY NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE `rod_store_interns` (
+	`user_id` text PRIMARY KEY NOT NULL,
+	`server_nickname` text DEFAULT '' NOT NULL,
+	`user_name` text DEFAULT '' NOT NULL,
+	`is_hiring` integer DEFAULT 0 NOT NULL,
+	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE `rods` (
 	`id` text PRIMARY KEY NOT NULL
 );
@@ -47,7 +55,7 @@ CREATE TABLE `users` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`rates` text NOT NULL,
-	`inventory` text DEFAULT '{}' NOT NULL,
+	`inventory` text DEFAULT '{"fishes":{},"rods":{}}' NOT NULL,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
 );

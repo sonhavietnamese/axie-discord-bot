@@ -6,7 +6,6 @@ import { RODS } from '../configs/rods'
 import { TRASHES } from '../configs/trashes'
 import { CHANNELS, GUILDS } from '../configs/whitelist'
 import { ADMINS } from '../core/admin'
-import { METADATA } from '../metadata'
 import type { Inventory } from '../schema'
 
 import fs from 'fs'
@@ -16,22 +15,12 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const store001 = fs.readFileSync(path.join(__dirname, '..', 'assets', 'store-001.webp'))
-
-// export function computeCDNUrl(asset: string) {
-//   if (asset.startsWith('/')) {
-//     return `${METADATA.CDN}${asset}.png`
-//   }
-
-//   return `${METADATA.CDN}/${asset}.png`
-// }
-
 export function computeCDNUrl(asset: string) {
   if (asset.startsWith('/')) {
-    return fs.readFileSync(path.join(__dirname, '..', 'assets', `${asset}.webp`))
+    return fs.readFileSync(path.join(__dirname, '..', 'assets', 'png', `${asset}.png`))
   }
 
-  return fs.readFileSync(path.join(__dirname, '..', 'assets', `${asset}.webp`))
+  return fs.readFileSync(path.join(__dirname, '..', 'assets', 'png', `${asset}.png`))
 }
 
 export function isAdmin(userId: string) {
@@ -282,44 +271,116 @@ export function getStuff(stuffId: string) {
 /**
  * Get the count of a specific item in inventory
  */
-export function getInventoryItemCount(inventory: Inventory, itemId: string): number {
-  return inventory[itemId] || 0
+export function getInventoryItemCount(inventory: Inventory, itemId: string, itemType?: 'fish' | 'rod'): number {
+  // Auto-detect item type if not specified
+  if (!itemType) {
+    if (itemId === '000' || (itemId >= '001' && itemId <= '006')) {
+      itemType = 'fish'
+    } else {
+      itemType = 'rod'
+    }
+  }
+
+  if (itemType === 'fish') {
+    return inventory.fishes[itemId] || 0
+  } else {
+    return inventory.rods[itemId] || 0
+  }
 }
 
 /**
  * Add items to inventory
  */
-export function addToInventory(inventory: Inventory, itemId: string, quantity: number = 1): Inventory {
-  return {
-    ...inventory,
-    [itemId]: getInventoryItemCount(inventory, itemId) + quantity,
+export function addToInventory(inventory: Inventory, itemId: string, quantity: number = 1, itemType?: 'fish' | 'rod'): Inventory {
+  // Auto-detect item type if not specified
+  if (!itemType) {
+    if (itemId === '000' || (itemId >= '001' && itemId <= '006')) {
+      itemType = 'fish'
+    } else {
+      itemType = 'rod'
+    }
+  }
+
+  if (itemType === 'fish') {
+    return {
+      ...inventory,
+      fishes: {
+        ...inventory.fishes,
+        [itemId]: (inventory.fishes[itemId] || 0) + quantity,
+      },
+    }
+  } else {
+    return {
+      ...inventory,
+      rods: {
+        ...inventory.rods,
+        [itemId]: (inventory.rods[itemId] || 0) + quantity,
+      },
+    }
   }
 }
 
 /**
  * Remove items from inventory (won't go below 0)
  */
-export function removeFromInventory(inventory: Inventory, itemId: string, quantity: number = 1): Inventory {
-  const currentCount = getInventoryItemCount(inventory, itemId)
-  const newCount = Math.max(0, currentCount - quantity)
-
-  if (newCount === 0) {
-    // Remove the key entirely if count reaches 0
-    const { [itemId]: _, ...rest } = inventory
-    return rest
+export function removeFromInventory(inventory: Inventory, itemId: string, quantity: number = 1, itemType?: 'fish' | 'rod'): Inventory {
+  // Auto-detect item type if not specified
+  if (!itemType) {
+    if (itemId === '000' || (itemId >= '001' && itemId <= '006')) {
+      itemType = 'fish'
+    } else {
+      itemType = 'rod'
+    }
   }
 
-  return {
-    ...inventory,
-    [itemId]: newCount,
+  if (itemType === 'fish') {
+    const currentCount = inventory.fishes[itemId] || 0
+    const newCount = Math.max(0, currentCount - quantity)
+
+    if (newCount === 0) {
+      // Remove the key entirely if count reaches 0
+      const { [itemId]: _, ...restFishes } = inventory.fishes
+      return {
+        ...inventory,
+        fishes: restFishes,
+      }
+    }
+
+    return {
+      ...inventory,
+      fishes: {
+        ...inventory.fishes,
+        [itemId]: newCount,
+      },
+    }
+  } else {
+    const currentCount = inventory.rods[itemId] || 0
+    const newCount = Math.max(0, currentCount - quantity)
+
+    if (newCount === 0) {
+      // Remove the key entirely if count reaches 0
+      const { [itemId]: _, ...restRods } = inventory.rods
+      return {
+        ...inventory,
+        rods: restRods,
+      }
+    }
+
+    return {
+      ...inventory,
+      rods: {
+        ...inventory.rods,
+        [itemId]: newCount,
+      },
+    }
   }
 }
 
 /**
  * Check if user has enough of a specific item
  */
-export function hasEnoughItems(inventory: Inventory, itemId: string, requiredQuantity: number): boolean {
-  return getInventoryItemCount(inventory, itemId) >= requiredQuantity
+export function hasEnoughItems(inventory: Inventory, itemId: string, requiredQuantity: number, itemType?: 'fish' | 'rod'): boolean {
+  return getInventoryItemCount(inventory, itemId, itemType) >= requiredQuantity
 }
 
 /**
@@ -327,41 +388,50 @@ export function hasEnoughItems(inventory: Inventory, itemId: string, requiredQua
  */
 export function getTotalFishCount(inventory: Inventory): number {
   const fishIds = ['001', '002', '003', '004', '005', '006']
-  return fishIds.reduce((total, fishId) => total + getInventoryItemCount(inventory, fishId), 0)
+  return fishIds.reduce((total, fishId) => total + (inventory.fishes[fishId] || 0), 0)
 }
 
 /**
  * Get total count of all trash in inventory (item 000)
  */
 export function getTotalTrashCount(inventory: Inventory): number {
-  return getInventoryItemCount(inventory, '000')
+  return inventory.fishes['000'] || 0
 }
 
 /**
  * Get total count of all NFTs in inventory (items 007+)
  */
 export function getTotalNFTCount(inventory: Inventory): number {
-  return Object.entries(inventory)
+  return Object.entries(inventory.fishes)
     .filter(([itemId]) => parseInt(itemId) >= 7)
     .reduce((total, [, count]) => total + count, 0)
 }
 
 /**
+ * Get total count of all rods in inventory
+ */
+export function getTotalRodCount(inventory: Inventory): number {
+  return Object.values(inventory.rods).reduce((total, count) => total + count, 0)
+}
+
+/**
  * Get all items of a specific type from inventory
  */
-export function getItemsByType(inventory: Inventory, type: 'fish' | 'trash' | 'nft'): Record<string, number> {
+export function getItemsByType(inventory: Inventory, type: 'fish' | 'trash' | 'nft' | 'rods'): Record<string, number> {
   switch (type) {
     case 'fish':
       return Object.fromEntries(
-        Object.entries(inventory).filter(([itemId]) => {
+        Object.entries(inventory.fishes).filter(([itemId]) => {
           const id = parseInt(itemId)
           return id >= 1 && id <= 6
         }),
       )
     case 'trash':
-      return Object.fromEntries(Object.entries(inventory).filter(([itemId]) => itemId === '000'))
+      return Object.fromEntries(Object.entries(inventory.fishes).filter(([itemId]) => itemId === '000'))
     case 'nft':
-      return Object.fromEntries(Object.entries(inventory).filter(([itemId]) => parseInt(itemId) >= 7))
+      return Object.fromEntries(Object.entries(inventory.fishes).filter(([itemId]) => parseInt(itemId) >= 7))
+    case 'rods':
+      return inventory.rods
     default:
       return {}
   }

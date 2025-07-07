@@ -2,10 +2,13 @@ import type { Interaction } from 'discord.js'
 import { ComponentType } from 'discord.js'
 import { logger } from 'robo.js'
 import { NFTs } from '../configs/nfts'
-import { CURRENCY_ID, REALM_ID } from '../constants'
 import { specialPlayer } from '../libs/nft'
-import { catchUnderwaterStuff, computeCDNUrl, createButtonsWithDistraction, getStuff } from '../libs/utils'
+import { addToInventory, catchUnderwaterStuff, computeCDNUrl, createButtonsWithDistraction, getStuff } from '../libs/utils'
 import { handleUserCatch, sellAllItems } from '../services/user'
+import { processPayment } from '../services/drip'
+import { RODS } from '../configs/rods'
+import { getCandyBalance } from '../services/drip'
+import { getUser, updateUserInventory, getUserInventory } from '../services/user'
 
 // Fishing session management
 interface FishingSession {
@@ -254,7 +257,7 @@ export default async (interaction: Interaction) => {
   // Handle sell-all button
   if (interaction.customId === 'sell-all') {
     try {
-      await interaction.deferReply({ ephemeral: true })
+      await interaction.deferReply({ flags: 64 })
 
       const result = await sellAllItems(interaction.user.id)
 
@@ -265,48 +268,16 @@ export default async (interaction: Interaction) => {
       }
 
       // Update balance via Drip API
-      try {
-        const dripUserResponse = await fetch(
-          `https://api.drip.re/api/v1/realms/${REALM_ID}/members/search?type=discord-id&values=${interaction.user.id}`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${process.env.DRIP_API_KEY}`,
-            },
-          },
-        )
+      const paymentResult = await processPayment(interaction.user.id, result.candiesEarned)
 
-        const dripUser = (await dripUserResponse.json()) as { data: { id: string }[] }
-        const user = dripUser.data[0]
-        if (!user) {
-          logger.warn(`User ${interaction.user.id} not found in Drip`)
-          return
-        }
-
-        const dripResponse = await fetch(`https://api.drip.re/api/v1/realms/${REALM_ID}/members/${user.id}/balance`, {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${process.env.DRIP_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            amount: result.candiesEarned,
-            currencyId: CURRENCY_ID,
-          }),
-        })
-
-        if (!dripResponse.ok) {
-          logger.warn(`Failed to update Drip balance for user ${interaction.user.id}: ${dripResponse.status} ${dripResponse.statusText}`)
-        } else {
-          logger.info(`Successfully updated Drip balance for user ${interaction.user.id} with ${result.candiesEarned} candies`)
-        }
-      } catch (dripError) {
-        logger.error('Error updating Drip balance:', dripError)
-        // Don't fail the main operation if Drip API fails
+      if (!paymentResult.success) {
+        logger.warn(`Failed to process payment for user ${interaction.user.id}: ${paymentResult.error}`)
+        // Don't fail the main operation if Drip API fails, but log the issue
       }
 
-      // Create a detailed summary of sold items
-      const soldItemsDetails = Object.entries(result.itemsSold)
+      // Create a detailed summary of sold items (only fish can be sold)
+      const soldItemsDetails = Object.entries(result.itemsSold.fishes)
+        .filter(([, quantity]) => quantity > 0)
         .map(([itemId, quantity]) => {
           const stuff = getStuff(itemId)
           const candiesForItem = Math.floor(stuff.price * quantity)
@@ -314,7 +285,7 @@ export default async (interaction: Interaction) => {
         })
         .join('\n')
 
-      const totalItemCount = Object.values(result.itemsSold).reduce((sum, qty) => sum + qty, 0)
+      const totalItemCount = Object.values(result.itemsSold.fishes).reduce((sum, qty) => sum + qty, 0)
 
       await interaction.editReply({
         embeds: [
@@ -369,5 +340,169 @@ export default async (interaction: Interaction) => {
         })
       }
     }
+  }
+
+  // Handle buy rod buttons
+  if (interaction.customId.startsWith('buy-rod-')) {
+    const rodType = interaction.customId.split('-')[2] // 'branch', 'mavis', or 'bald'
+
+    try {
+      await interaction.deferReply({ ephemeral: true })
+
+      // Import required dependencies for rod buying
+
+      // Find the rod configuration
+      let selectedRod
+      switch (rodType) {
+        case 'branch':
+          selectedRod = RODS[0] // Branch rod
+          break
+        case 'mavis':
+          selectedRod = RODS[1] // Mavis rod
+          break
+        case 'bald':
+          selectedRod = RODS[2] // BALD rod
+          break
+        default:
+          await interaction.editReply({
+            content: '❌ **Invalid rod type selected.**',
+          })
+          return
+      }
+
+      console.log(
+        `🎣 User ${interaction.user.username} (${interaction.user.id}) attempting to buy ${selectedRod.name} rod for ${selectedRod.price} candies`,
+      )
+
+      // Double check user balance
+      const currentBalance = await getCandyBalance(interaction.user.id)
+
+      if (currentBalance < selectedRod.price) {
+        await interaction.editReply({
+          content: `❌ **Insufficient candies!** You need ${selectedRod.price} 🍬 candies but only have ${currentBalance} 🍬.`,
+        })
+        console.log(`❌ Purchase failed: User ${interaction.user.id} has insufficient balance (${currentBalance}/${selectedRod.price})`)
+        return
+      }
+
+      // Process payment via Drip API (subtract candies)
+      const paymentResult = await processPayment(interaction.user.id, -selectedRod.price) // Negative amount to subtract
+
+      if (!paymentResult.success) {
+        await interaction.editReply({
+          content: `❌ **Payment processing failed:** ${paymentResult.error || 'Unknown error'}. Please try again later.`,
+        })
+        console.log(`❌ Payment failed: ${paymentResult.error}`)
+        return
+      }
+
+      console.log(`✅ Payment success: Deducted ${selectedRod.price} candies from user ${interaction.user.id}`)
+
+      // Add rod to user's inventory
+      try {
+        const userData = await getUser(interaction.user.id)
+        if (!userData) {
+          await interaction.editReply({
+            content: '❌ **User data not found.** Please contact an admin.',
+          })
+          return
+        }
+
+        // Get current inventory and add the rod
+        const currentInventory = await getUserInventory(interaction.user.id)
+
+        if (!currentInventory) {
+          await interaction.editReply({
+            content: '❌ **Could not load user inventory.** Please contact an admin.',
+          })
+          return
+        }
+
+        // Add rod to rods section using utility function
+        const updatedInventory = addToInventory(currentInventory, selectedRod.id, 1, 'rod')
+
+        // Update user inventory in database
+        await updateUserInventory(interaction.user.id, updatedInventory)
+
+        console.log(`🎣 Rod purchase successful: User ${interaction.user.id} bought ${selectedRod.name} rod`)
+        console.log(`📦 Inventory updated: Added 1x ${selectedRod.name} rod (ID: ${selectedRod.id})`)
+
+        // Send success message
+        await interaction.editReply({
+          embeds: [
+            {
+              color: selectedRod.color,
+              title: '🎉 Rod Purchase Successful!',
+              description: `You have successfully purchased a **${selectedRod.name} Rod**!\n\n${selectedRod.description}`,
+              fields: [
+                {
+                  name: '🎣 Rod Purchased',
+                  value: selectedRod.name,
+                  inline: true,
+                },
+                {
+                  name: '💰 Candies Spent',
+                  value: `${selectedRod.price} 🍬`,
+                  inline: true,
+                },
+                {
+                  name: '📊 Transaction Status',
+                  value: 'Completed ✅',
+                  inline: true,
+                },
+                {
+                  name: '⚡ Rod Stats',
+                  value: `Rate: ${selectedRod.rate}%\nUses: ${selectedRod.uses}`,
+                  inline: true,
+                },
+                {
+                  name: '💳 Remaining Balance',
+                  value: `${currentBalance - selectedRod.price} 🍬`,
+                  inline: true,
+                },
+              ],
+              footer: {
+                icon_url: interaction.user.displayAvatarURL(),
+                text: `${interaction.user.globalName || interaction.user.username} • ${new Date().toLocaleString()}`,
+              },
+            },
+          ],
+          files: [
+            {
+              attachment: computeCDNUrl(selectedRod.image),
+              name: `${selectedRod.image}.webp`,
+            },
+          ],
+        })
+
+        logger.info(
+          `User ${interaction.user.username} (${interaction.user.id}) successfully purchased ${selectedRod.name} rod for ${selectedRod.price} candies`,
+        )
+      } catch (inventoryError) {
+        logger.error('Error updating user inventory after rod purchase:', inventoryError)
+        console.log(`❌ Inventory update failed: ${inventoryError}`)
+
+        // If inventory update fails but payment succeeded, we should inform user
+        await interaction.editReply({
+          content: '⚠️ **Payment processed but inventory update failed.** Please contact an admin with this message for assistance.',
+        })
+      }
+    } catch (error) {
+      logger.error('Error handling rod purchase:', error)
+      console.log(`❌ Rod purchase error: ${error}`)
+
+      if (interaction.deferred) {
+        await interaction.editReply({
+          content: '❌ **An error occurred while processing your rod purchase.** Please try again later.',
+        })
+      } else {
+        await interaction.reply({
+          content: '❌ **An error occurred while processing your rod purchase.** Please try again later.',
+          ephemeral: true,
+        })
+      }
+    }
+
+    return
   }
 }

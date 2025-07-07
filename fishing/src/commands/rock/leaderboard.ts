@@ -27,7 +27,8 @@ export default async (interaction: ChatInputCommandInteraction) => {
       .map((user) => {
         try {
           const inventory = JSON.parse(user.inventory)
-          const rockCount = inventory['000'] || 0
+          // Access rock count from fishes section (rocks are item 000)
+          const rockCount = inventory.fishes?.['000'] || inventory['000'] || 0 // Support both old and new format
 
           return {
             userId: user.id,
