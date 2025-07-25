@@ -88,8 +88,8 @@ export default async (interaction: ChatInputCommandInteraction) => {
     ],
     files: [
       {
-        attachment: computeCDNUrl('store-001'),
-        name: 'store-001.webp',
+        attachment: computeCDNUrl('store-et'),
+        name: 'store-et.png',
       },
     ],
     components:

@@ -33,11 +33,12 @@ export default async (interaction: ChatInputCommandInteraction) => {
 
   // Parse rod inventory
   const rodInventory = Object.entries(rawInventory.rods)
-    .filter(([, quantity]) => quantity > 0)
-    .map(([id, quantity]) => {
+    .filter(([, rodData]) => rodData.quantity > 0)
+    .map(([id, rodData]) => {
       const rod = getRod(id)
       return {
-        quantity: Number(quantity),
+        quantity: rodData.quantity,
+        usesLeft: rodData.usesLeft,
         ...rod,
       }
     })
@@ -98,7 +99,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
         },
         {
           name: 'Uses Each',
-          value: rodInventory.map((rod) => `${rod.uses} uses`).join('\n') || '0',
+          value: rodInventory.map((rod) => `${rod.usesLeft} uses`).join('\n') || '0',
           inline: true,
         },
       ],

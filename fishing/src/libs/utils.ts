@@ -284,8 +284,24 @@ export function getInventoryItemCount(inventory: Inventory, itemId: string, item
   if (itemType === 'fish') {
     return inventory.fishes[itemId] || 0
   } else {
-    return inventory.rods[itemId] || 0
+    const rodData = inventory.rods[itemId]
+    return rodData ? rodData.quantity : 0
   }
+}
+
+/**
+ * Get rod uses left for a specific rod
+ */
+export function getRodUsesLeft(inventory: Inventory, rodId: string): number {
+  const rodData = inventory.rods[rodId]
+  return rodData ? rodData.usesLeft : 0
+}
+
+/**
+ * Check if a rod is broken (no uses left)
+ */
+export function isRodBroken(inventory: Inventory, rodId: string): boolean {
+  return getRodUsesLeft(inventory, rodId) <= 0
 }
 
 /**
@@ -310,12 +326,34 @@ export function addToInventory(inventory: Inventory, itemId: string, quantity: n
       },
     }
   } else {
-    return {
-      ...inventory,
-      rods: {
-        ...inventory.rods,
-        [itemId]: (inventory.rods[itemId] || 0) + quantity,
-      },
+    // For rods, if adding a new rod, initialize with max uses
+    const existingRod = inventory.rods[itemId]
+    if (existingRod) {
+      return {
+        ...inventory,
+        rods: {
+          ...inventory.rods,
+          [itemId]: {
+            quantity: existingRod.quantity + quantity,
+            usesLeft: existingRod.usesLeft, // Keep existing uses
+          },
+        },
+      }
+    } else {
+      // New rod - get max uses from configuration
+      const rodConfig = getRod(itemId)
+      const maxUses = rodConfig?.uses || 10
+
+      return {
+        ...inventory,
+        rods: {
+          ...inventory.rods,
+          [itemId]: {
+            quantity: quantity,
+            usesLeft: maxUses,
+          },
+        },
+      }
     }
   }
 }
@@ -354,11 +392,15 @@ export function removeFromInventory(inventory: Inventory, itemId: string, quanti
       },
     }
   } else {
-    const currentCount = inventory.rods[itemId] || 0
-    const newCount = Math.max(0, currentCount - quantity)
+    const existingRod = inventory.rods[itemId]
+    if (!existingRod) {
+      return inventory // No rod to remove
+    }
 
-    if (newCount === 0) {
-      // Remove the key entirely if count reaches 0
+    const newQuantity = Math.max(0, existingRod.quantity - quantity)
+
+    if (newQuantity === 0) {
+      // Remove the rod entirely if quantity reaches 0
       const { [itemId]: _, ...restRods } = inventory.rods
       return {
         ...inventory,
@@ -370,9 +412,44 @@ export function removeFromInventory(inventory: Inventory, itemId: string, quanti
       ...inventory,
       rods: {
         ...inventory.rods,
-        [itemId]: newCount,
+        [itemId]: {
+          quantity: newQuantity,
+          usesLeft: existingRod.usesLeft, // Keep existing uses
+        },
       },
     }
+  }
+}
+
+/**
+ * Reduce rod uses (for fishing)
+ */
+export function useRod(inventory: Inventory, rodId: string, usesToReduce: number = 1): Inventory {
+  const existingRod = inventory.rods[rodId]
+  if (!existingRod) {
+    return inventory // No rod found
+  }
+
+  const newUsesLeft = Math.max(0, existingRod.usesLeft - usesToReduce)
+
+  if (newUsesLeft === 0) {
+    // Rod is broken - remove it from inventory
+    const { [rodId]: _, ...restRods } = inventory.rods
+    return {
+      ...inventory,
+      rods: restRods,
+    }
+  }
+
+  return {
+    ...inventory,
+    rods: {
+      ...inventory.rods,
+      [rodId]: {
+        quantity: existingRod.quantity,
+        usesLeft: newUsesLeft,
+      },
+    },
   }
 }
 
@@ -411,7 +488,16 @@ export function getTotalNFTCount(inventory: Inventory): number {
  * Get total count of all rods in inventory
  */
 export function getTotalRodCount(inventory: Inventory): number {
-  return Object.values(inventory.rods).reduce((total, count) => total + count, 0)
+  return Object.values(inventory.rods).reduce((total, rodData) => total + rodData.quantity, 0)
+}
+
+/**
+ * Get all usable rods (quantity > 0 and usesLeft > 0)
+ */
+export function getUsableRods(inventory: Inventory): Array<{ rodId: string; quantity: number; usesLeft: number }> {
+  return Object.entries(inventory.rods)
+    .filter(([, rodData]) => rodData.quantity > 0 && rodData.usesLeft > 0)
+    .map(([rodId, rodData]) => ({ rodId, ...rodData }))
 }
 
 /**
@@ -431,7 +517,8 @@ export function getItemsByType(inventory: Inventory, type: 'fish' | 'trash' | 'n
     case 'nft':
       return Object.fromEntries(Object.entries(inventory.fishes).filter(([itemId]) => parseInt(itemId) >= 7))
     case 'rods':
-      return inventory.rods
+      // Convert rod data to simple quantity format for backward compatibility
+      return Object.fromEntries(Object.entries(inventory.rods).map(([rodId, rodData]) => [rodId, rodData.quantity]))
     default:
       return {}
   }

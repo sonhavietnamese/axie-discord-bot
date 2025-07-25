@@ -2,13 +2,12 @@ import type { Interaction } from 'discord.js'
 import { ComponentType } from 'discord.js'
 import { logger } from 'robo.js'
 import { NFTs } from '../configs/nfts'
-import { specialPlayer } from '../libs/nft'
-import { addToInventory, catchUnderwaterStuff, computeCDNUrl, createButtonsWithDistraction, getStuff } from '../libs/utils'
-import { handleUserCatch, sellAllItems } from '../services/user'
-import { processPayment } from '../services/drip'
 import { RODS } from '../configs/rods'
-import { getCandyBalance } from '../services/drip'
-import { getUser, updateUserInventory, getUserInventory } from '../services/user'
+import { specialPlayer } from '../libs/nft'
+import { addToInventory, catchUnderwaterStuff, computeCDNUrl, createButtonsWithDistraction, getStuff, getTotalRodCount } from '../libs/utils'
+import { getCandyBalance, processPayment } from '../services/drip'
+import { getCurrentRodStoreIntern, getRodStoreStock, getRodStoreStockByRodId, reduceRodStore, restockRodStore } from '../services/rod-store'
+import { getOrCreateUser, getUserInventory, handleUserCatch, sellAllItems, updateUserInventory } from '../services/user'
 
 // Fishing session management
 interface FishingSession {
@@ -80,7 +79,7 @@ export default async (interaction: Interaction) => {
     // Immediately disable all buttons to prevent double-clicks
     try {
       await interaction.update({
-        content: `🎣 Great throw, watch out, fish is naughty, carefully catch it rhytm!\n\n_Your task is **press the number** shown below in sequence\nFaster press, rarer fish!_\n\n⏳ **Processing your choice...** Please hold on, calculating results!\n🔄 Working on your catch...`,
+        content: `🎣 **Great throw!** Watch out, fish is naughty, carefully catch it with rhythm!\n\n_Your task is **press the number** shown below in sequence\nFaster press, rarer fish!_\n\n🎣 **Using:** ${session.configuredRod.emoji} ${session.configuredRod.name} Rod (${session.configuredRod.rate}% rate)\n🔧 **Rod Status:** ${session.assignedRod.uses} uses left\n\nHold tight!!!!`,
         components: [], // Remove all buttons immediately
       })
     } catch (updateError) {
@@ -126,15 +125,19 @@ export default async (interaction: Interaction) => {
 
             // Prepare the message content
             const isTrash = stuff.rank.name.toUpperCase() === 'USELESS'
+            const rodUsesLeft = Math.max(0, session.assignedRod.uses - 1) // Rod uses were reduced by 1
+            const rodStatusMessage =
+              rodUsesLeft > 0
+                ? `🔧 **Rod Status:** ${rodUsesLeft} uses left`
+                : `🔧 **Rod Status:** 🔴 Broken! Buy a new rod from \`/fishing-store rod\``
+
             const message = isTrash
               ? `🎉 **Not bad!** You caught ${stuff.name}!\n\n**Rarity:** ${stuff.rank.name}\n**Thing:** ${
                   stuff.name
-                }\n\nYou successfully pressed all numbers: ${session.targetNumbers.join(
-                  ' → ',
-                )}\n\n_You can use it to throw at <@852110112264945704>!_`
+                }\n\nYou successfully pressed all numbers: ${session.targetNumbers.join(' → ')}\n\n${rodStatusMessage}\n\n`
               : `🎉 **Congratulations!** You caught a ${stuff.name}!\n\n**Rarity:** ${stuff.rank.name}\n**Fish:** ${stuff.name}\n\n**About**: ${
                   stuff.description
-                }\n\nYou successfully pressed all numbers: ${session.targetNumbers.join(' → ')}`
+                }\n\nYou successfully pressed all numbers: ${session.targetNumbers.join(' → ')}\n\n${rodStatusMessage}`
 
             updateData = {
               content: message,
@@ -148,9 +151,17 @@ export default async (interaction: Interaction) => {
             }
 
             // Prepare public message for rare catches
-            if (interaction.channel && 'send' in interaction.channel && ['supreme', 'monster', 'nft'].includes(stuff.rank.id)) {
+            if (
+              interaction.channel &&
+              'send' in interaction.channel &&
+              ['supreme', 'monster', 'nft', 'common', 'legendary', 'epic'].includes(stuff.rank.id)
+            ) {
+              const prefix =
+                session.configuredRod.id === '001'
+                  ? '# WTFish <a:ooooooooooooo:1385193747268112455> <a:ooooooooooooo:1385193747268112455> <a:ooooooooooooo:1385193747268112455> \n'
+                  : ''
               publicMessageData = {
-                content: `🎣 **${interaction.user} caught a ${stuff.name}!**\n\n🐟 **Rarity:** ${stuff.rank.name}\n\n**About**: ${stuff.description}\n\n _Reaction to share the luck_ `,
+                content: ` ${prefix} **${interaction.user} used ${session.configuredRod.emoji} ${session.configuredRod.name} Rod caught a ${stuff.name}!**\n\n🐟 **Rarity:** ${stuff.rank.name}\n\n**About**: ${stuff.description}\n\n`,
                 files: [
                   {
                     attachment: computeCDNUrl(stuff.image),
@@ -161,20 +172,32 @@ export default async (interaction: Interaction) => {
             }
           } else {
             const thing = getStuff('000')
+            const rodUsesLeft = Math.max(0, session.assignedRod.uses - 1) // Rod uses were reduced by 1
+            const rodStatusMessage =
+              rodUsesLeft > 0
+                ? `🔧 **Rod Status:** ${rodUsesLeft} uses left`
+                : `🔧 **Rod Status:** 🔴 Broken! Buy a new rod from \`/fishing-store rod\``
+
             updateData = {
               content: `🎉 **Congratulations!** You caught a ${thing.name}!\n\nYou successfully pressed all numbers: ${session.targetNumbers.join(
                 ' → ',
-              )}`,
+              )}\n\n${rodStatusMessage}`,
               components: [],
             }
           }
         } catch (error) {
           logger.error('Error handling fish catch:', error)
           const thing = getStuff('000')
+          const rodUsesLeft = Math.max(0, session.assignedRod.uses - 1) // Rod uses were reduced by 1
+          const rodStatusMessage =
+            rodUsesLeft > 0
+              ? `🔧 **Rod Status:** ${rodUsesLeft} uses left`
+              : `🔧 **Rod Status:** 🔴 Broken! Buy a new rod from \`/fishing-store rod\``
+
           updateData = {
             content: `🎉 **Something went wrong, but you still caught a ${
               thing.name
-            }!**\n\nYou successfully pressed all numbers: ${session.targetNumbers.join(' → ')}`,
+            }!**\n\nYou successfully pressed all numbers: ${session.targetNumbers.join(' → ')}\n\n${rodStatusMessage}`,
             components: [],
           }
         }
@@ -211,9 +234,13 @@ export default async (interaction: Interaction) => {
       } else {
         // Move to next number
         const nextUpdateData = {
-          content: `🎣 Great throw, watch out, fish is naughty, carefully catch it rhytm!\n\n_Your task is **press the number** shown below in sequence\nFaster press, rarer fish!_\n\nProgress: ${
-            session.currentIndex
-          }/${session.targetNumbers.length}\nPress the number: ${session.targetNumbers[session.currentIndex]}`,
+          content: `🎣 Great throw, watch out, fish is naughty, carefully catch it rhytm!\n\n_Your task is **press the number** shown below in sequence\nFaster press, rarer fish!_ \n\n **Using:** ${
+            session.configuredRod.emoji
+          } ${session.configuredRod.name} Rod (${session.configuredRod.rate}% rate)\n🔧 **Rod Status:** ${
+            session.assignedRod.uses
+          } uses left\n\nProgress: ${session.currentIndex}/${session.targetNumbers.length}\nPress the number: ${
+            session.targetNumbers[session.currentIndex]
+          }`,
           components: [
             {
               type: ComponentType.ActionRow,
@@ -236,10 +263,14 @@ export default async (interaction: Interaction) => {
       }
       fishingSessions.delete(sessionKey)
 
+      const rodUsesLeft = Math.max(0, session.assignedRod.uses - 1) // Rod uses were reduced by 1
+      const rodStatusMessage =
+        rodUsesLeft > 0 ? `🔧 **Rod Status:** ${rodUsesLeft} uses left` : `🔧 **Rod Status:** 🔴 Broken! Buy a new rod from \`/fishing-store rod\``
+
       const wrongNumberData = {
         content: `❌❌ **Ehhhh, You missed the rhytm, fish got away!**\n\nYou pressed ${pressedNumber} but needed ${
           session.targetNumbers[session.currentIndex]
-        }\n\nThe sequence was: ${session.targetNumbers.join(' → ')}\nTry again!`,
+        }\n\nThe sequence was: ${session.targetNumbers.join(' → ')}\n\n${rodStatusMessage}\n\nTry again!`,
         components: [],
       }
 
@@ -349,8 +380,6 @@ export default async (interaction: Interaction) => {
     try {
       await interaction.deferReply({ ephemeral: true })
 
-      // Import required dependencies for rod buying
-
       // Find the rod configuration
       let selectedRod
       switch (rodType) {
@@ -370,9 +399,47 @@ export default async (interaction: Interaction) => {
           return
       }
 
+      // Check if rod is in stock
+      const rodStock = await getRodStoreStockByRodId(selectedRod.id)
+      const intern = await getCurrentRodStoreIntern()
+
+      if (!intern) {
+        await interaction.editReply({
+          content: `❌ Rod Store Intern not found!`,
+        })
+        return
+      }
+
+      if (!rodStock || rodStock.stock === 0 || intern.isHiring === 0) {
+        await interaction.editReply({
+          content: `❌ **${selectedRod.name} Rod is out of stock!** Ask Rod Store Intern <@${intern.userId || 'unknown'}> to restock!`,
+        })
+        return
+      }
+
       console.log(
         `🎣 User ${interaction.user.username} (${interaction.user.id}) attempting to buy ${selectedRod.name} rod for ${selectedRod.price} candies`,
       )
+
+      // Create or get user first to check rod inventory
+      const userData = await getOrCreateUser(interaction.user.id, interaction.user.username || interaction.user.globalName || 'Unknown User')
+
+      // Get current inventory to check rod count before payment
+      let currentInventory = await getUserInventory(interaction.user.id)
+      if (!currentInventory) {
+        currentInventory = { fishes: {}, rods: {} }
+      }
+
+      // Check if user already has any rods (enforce 1 rod limit) BEFORE payment
+      const totalRods = getTotalRodCount(currentInventory)
+
+      if (totalRods >= 1) {
+        await interaction.editReply({
+          content: `❌ **Rod limit reached!** You can only own 1 rod at a time. You currently have ${totalRods} rod(s).\n\n_Please use your current rod or wait for a rod trading feature._`,
+        })
+        console.log(`❌ Purchase blocked: User ${interaction.user.id} already has ${totalRods} rod(s)`)
+        return
+      }
 
       // Double check user balance
       const currentBalance = await getCandyBalance(interaction.user.id)
@@ -398,31 +465,14 @@ export default async (interaction: Interaction) => {
 
       console.log(`✅ Payment success: Deducted ${selectedRod.price} candies from user ${interaction.user.id}`)
 
-      // Add rod to user's inventory
+      // Add rod to user's inventory (user and inventory already verified above)
       try {
-        const userData = await getUser(interaction.user.id)
-        if (!userData) {
-          await interaction.editReply({
-            content: '❌ **User data not found.** Please contact an admin.',
-          })
-          return
-        }
-
-        // Get current inventory and add the rod
-        const currentInventory = await getUserInventory(interaction.user.id)
-
-        if (!currentInventory) {
-          await interaction.editReply({
-            content: '❌ **Could not load user inventory.** Please contact an admin.',
-          })
-          return
-        }
-
-        // Add rod to rods section using utility function
+        // Add rod to rods section (user has 0 rods, so this will be their first)
         const updatedInventory = addToInventory(currentInventory, selectedRod.id, 1, 'rod')
 
         // Update user inventory in database
         await updateUserInventory(interaction.user.id, updatedInventory)
+        await reduceRodStore(selectedRod.id, 1)
 
         console.log(`🎣 Rod purchase successful: User ${interaction.user.id} bought ${selectedRod.name} rod`)
         console.log(`📦 Inventory updated: Added 1x ${selectedRod.name} rod (ID: ${selectedRod.id})`)
@@ -433,7 +483,7 @@ export default async (interaction: Interaction) => {
             {
               color: selectedRod.color,
               title: '🎉 Rod Purchase Successful!',
-              description: `You have successfully purchased a **${selectedRod.name} Rod**!\n\n${selectedRod.description}`,
+              description: `You have successfully purchased your **${selectedRod.name} Rod**!\n\n${selectedRod.description}\n\n⚠️ **Note:** You can only own 1 rod at a time.`,
               fields: [
                 {
                   name: '🎣 Rod Purchased',
@@ -460,6 +510,11 @@ export default async (interaction: Interaction) => {
                   value: `${currentBalance - selectedRod.price} 🍬`,
                   inline: true,
                 },
+                {
+                  name: '🎯 Rod Count',
+                  value: '1/1 (Max)',
+                  inline: true,
+                },
               ],
               footer: {
                 icon_url: interaction.user.displayAvatarURL(),
@@ -482,9 +537,16 @@ export default async (interaction: Interaction) => {
         logger.error('Error updating user inventory after rod purchase:', inventoryError)
         console.log(`❌ Inventory update failed: ${inventoryError}`)
 
-        // If inventory update fails but payment succeeded, we should inform user
+        // If inventory update fails but payment succeeded, we should refund and inform user
+        const refundResult = await processPayment(interaction.user.id, selectedRod.price) // Positive amount to refund
+        if (refundResult.success) {
+          console.log(`💰 Refunded ${selectedRod.price} candies to user ${interaction.user.id} due to inventory error`)
+        } else {
+          logger.error(`Failed to refund user ${interaction.user.id}: ${refundResult.error}`)
+        }
+
         await interaction.editReply({
-          content: '⚠️ **Payment processed but inventory update failed.** Please contact an admin with this message for assistance.',
+          content: '❌ **Inventory update failed.** Your payment has been refunded. Please try again or contact an admin.',
         })
       }
     } catch (error) {
@@ -502,6 +564,35 @@ export default async (interaction: Interaction) => {
         })
       }
     }
+
+    return
+  }
+
+  // Handle restock all rods button
+  if (interaction.customId === 'restock-rods') {
+    await interaction.deferReply({ ephemeral: true }) // <-- Add this line
+
+    const intern = await getCurrentRodStoreIntern()
+    if (!intern) {
+      await interaction.editReply({
+        content: `❌ Rod Store Intern not found!`,
+      })
+
+      return
+    }
+
+    await interaction.editReply({
+      content: `🔄 Refilling all rods...`,
+    })
+
+    const rodStore = await getRodStoreStock()
+    const rodStoreToRestock = rodStore.map((r) => ({ id: r.id, rodId: r.rodId, stock: 5 }))
+    console.log(rodStoreToRestock)
+    await restockRodStore(rodStoreToRestock)
+
+    await interaction.editReply({
+      content: `✅ Refilled all rods!`,
+    })
 
     return
   }

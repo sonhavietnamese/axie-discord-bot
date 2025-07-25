@@ -10,7 +10,7 @@ import { RODS } from '../../configs/rods'
 import { font, storeBackgroundBase64 } from '../../core/preload'
 import { type RodStoreIntern } from '../../schema'
 import { getCandyBalance } from '../../services/drip'
-import { getCurrentRodStoreIntern } from '../../services/rod-store'
+import { getCurrentRodStoreIntern, getRodStoreStock } from '../../services/rod-store'
 
 export const config = createCommandConfig({
   description: 'Enter Rod Store',
@@ -28,6 +28,12 @@ export default async (interaction: ChatInputCommandInteraction) => {
     })
   }
 
+  const isRodStoreInternInteracting = interaction.user.id === intern.userId
+
+  const rodStore = await getRodStoreStock()
+
+  const isEmpty = rodStore.every((r) => r.stock === 0)
+
   const thumbnail = await generateRodStoreImage(intern)
   const candyBalance = await getCandyBalance(interaction.user.id)
 
@@ -38,7 +44,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
       label: `Buy Branch Rod`,
       emoji: RODS[0].emoji,
       customId: 'buy-rod-branch',
-      disabled: candyBalance <= RODS[0].price,
+      disabled: candyBalance <= RODS[0].price || rodStore.find((r) => r.rodId === RODS[0].id)?.stock === 0,
     },
     {
       type: ComponentType.Button,
@@ -46,7 +52,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
       label: `Buy Mavis Rod`,
       emoji: RODS[1].emoji,
       customId: 'buy-rod-mavis',
-      disabled: candyBalance <= RODS[1].price,
+      disabled: candyBalance <= RODS[1].price || rodStore.find((r) => r.rodId === RODS[1].id)?.stock === 0,
     },
     {
       type: ComponentType.Button,
@@ -54,16 +60,33 @@ export default async (interaction: ChatInputCommandInteraction) => {
       label: `Buy BALD Rod`,
       emoji: RODS[2].emoji,
       customId: 'buy-rod-bald',
-      disabled: candyBalance <= RODS[2].price,
+      disabled: candyBalance <= RODS[2].price || rodStore.find((r) => r.rodId === RODS[2].id)?.stock === 0,
     },
   ]
+
+  if (isRodStoreInternInteracting) {
+    buttonGroup.push({
+      type: ComponentType.Button,
+      style: ButtonStyle.Danger,
+      label: `Refill All Rods`,
+      customId: 'restock-rods',
+      disabled: !isRodStoreInternInteracting,
+      emoji: '🔄',
+    })
+  }
 
   await interaction.editReply({
     embeds: [
       {
         color: 0xfff7d9,
         title: `Rod Store`,
-        description: `Welcome to the Rod Store!`,
+        description:
+          `Welcome to the Rod Store!` + (isEmpty ? `\n\n**Rods are out of stock**\nAsk Rod Store Intern <@${intern.userId}> to restock!` : ''),
+        fields: rodStore.map((rod) => ({
+          name: RODS.find((r) => r.id === rod.rodId)?.name || 'Unknown Rod',
+          value: `Stock: ${rod.stock}`,
+          inline: true,
+        })),
       },
       {
         color: 0xfff7d9,

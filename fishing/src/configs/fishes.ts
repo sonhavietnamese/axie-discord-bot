@@ -35,7 +35,7 @@ export const FISHES = [
     rank: RANKS.MYTHIC,
     image: 'fish-004',
     description: 'Koi fish are vibrant, graceful swimmers that bring good fortune and serenity.',
-    price: 1,
+    price: 2,
     emoji: '<:004:1384889035155181772>',
   },
   {

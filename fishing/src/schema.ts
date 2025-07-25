@@ -13,19 +13,21 @@ export const hanana = sqliteTable('hanana', {
   endedAt: text('ended_at').default(sql`CURRENT_TIMESTAMP`),
 })
 
-// Junction table for many-to-many relationship between users and hanana events
-export const hananaParticipants = sqliteTable('hanana_participants', {
-  hananaId: text('hanana_id')
-    .notNull()
-    .references(() => hanana.id, { onDelete: 'cascade' }),
+export const fishingHistory = sqliteTable('fishing_history', {
+  id: text('id').primaryKey(),
   userId: text('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
+  hananaId: text('hanana_id')
+    .notNull()
+    .references(() => hanana.id, { onDelete: 'cascade' }),
+  fishId: text('fish_id')
+    .notNull()
+    .references(() => fishes.id, { onDelete: 'cascade' }),
 
-  rod: text('rod').references(() => rods.id),
-  uses: integer('uses').default(0).notNull(),
+  rodId: text('rod_id'),
 
-  joinedAt: text('joined_at')
+  createdAt: text('created_at')
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
 })
@@ -95,14 +97,23 @@ export const rodStoreIntern = sqliteTable('rod_store_interns', {
     .notNull(),
 })
 
+// Rod Store with amount of stock of each rod
+export const rodStore = sqliteTable('rod_store', {
+  id: text('id').primaryKey(),
+  rodId: text('rod_id')
+    .notNull()
+    .references(() => rods.id, { onDelete: 'cascade' }),
+  stock: integer('stock').notNull().default(0),
+})
+
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 
 export type Hanana = typeof hanana.$inferSelect
 export type NewHanana = typeof hanana.$inferInsert
 
-export type HananaParticipant = typeof hananaParticipants.$inferSelect
-export type NewHananaParticipant = typeof hananaParticipants.$inferInsert
+export type FishingHistory = typeof fishingHistory.$inferSelect
+export type NewFishingHistory = typeof fishingHistory.$inferInsert
 
 export type Exchange = typeof exchanges.$inferSelect
 export type NewExchange = typeof exchanges.$inferInsert
@@ -110,7 +121,7 @@ export type NewExchange = typeof exchanges.$inferInsert
 // Type for inventory JSON structure - new nested format
 export type Inventory = {
   fishes: Record<string, number>
-  rods: Record<string, number>
+  rods: Record<string, { quantity: number; usesLeft: number }>
 }
 
 // Legacy inventory type for backward compatibility
@@ -118,6 +129,17 @@ export type LegacyInventory = Record<string, number>
 
 // Helper function to migrate old inventory format to new format
 export function migrateInventory(inventoryData: string | LegacyInventory | Inventory): Inventory {
+  // Import RODS configuration for default uses
+  const DEFAULT_ROD_USES = 10 // Fallback if rod config not found
+  const ROD_CONFIG_USES: Record<string, number> = {
+    '001': 10, // Branch rod
+    '002': 12, // Mavis rod
+    '003': 12, // BALD rod
+    'rod-001': 10, // Branch rod alternate ID
+    'rod-002': 12, // Mavis rod alternate ID
+    'rod-003': 12, // BALD rod alternate ID
+  }
+
   // If it's a string, parse it first
   let parsed: any
   if (typeof inventoryData === 'string') {
@@ -132,7 +154,30 @@ export function migrateInventory(inventoryData: string | LegacyInventory | Inven
 
   // If already in new format, return as is
   if (parsed && typeof parsed === 'object' && 'fishes' in parsed && 'rods' in parsed) {
-    return parsed as Inventory
+    // Check if rods are in new format (with quantity and usesLeft)
+    const rodsAreNewFormat = Object.values(parsed.rods || {}).every((rod: any) => typeof rod === 'object' && 'quantity' in rod && 'usesLeft' in rod)
+
+    if (rodsAreNewFormat) {
+      return parsed as Inventory
+    } else {
+      // Migrate old rod format to new format
+      const migratedRods: Record<string, { quantity: number; usesLeft: number }> = {}
+      for (const [rodId, quantity] of Object.entries(parsed.rods || {})) {
+        if (typeof quantity === 'number') {
+          const maxUses = ROD_CONFIG_USES[rodId] || DEFAULT_ROD_USES
+
+          migratedRods[rodId] = {
+            quantity: quantity,
+            usesLeft: maxUses, // Initialize with max uses
+          }
+        }
+      }
+
+      return {
+        fishes: parsed.fishes || {},
+        rods: migratedRods,
+      }
+    }
   }
 
   // Convert legacy format to new format
@@ -148,7 +193,12 @@ export function migrateInventory(inventoryData: string | LegacyInventory | Inven
         } else if (itemId.startsWith('rod-') || (itemId >= '001' && itemId <= '003')) {
           // For ambiguous cases (001-003), we'll assume it's fish unless context suggests otherwise
           // This will be handled case by case in migration
-          newInventory.rods[itemId] = quantity
+          const maxUses = ROD_CONFIG_USES[itemId] || DEFAULT_ROD_USES
+
+          newInventory.rods[itemId] = {
+            quantity: quantity,
+            usesLeft: maxUses,
+          }
         }
       }
     }

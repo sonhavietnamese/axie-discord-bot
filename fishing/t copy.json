@@ -1,0 +1,99 @@
+{
+  "items": [
+    {
+      "clientID": "0xf065acefb9d2a14fa215c2822165a4c7feca7d93",
+      "name": "namor? BLMS",
+      "numbers": [
+        28533,
+        28534,
+        28607,
+        28608,
+        28609,
+        28521
+      ]
+    },
+    {
+      "clientID": "0xf0d57ec9a8d43a2d8faa4808af0ca74fe2c5e0c8",
+      "name": "Abigailsita",
+      "numbers": [
+        28403,
+        28404,
+        28405,
+        28476,
+        28477,
+        28478,
+        28773,
+        28774,
+        28775,
+        28776,
+        28777
+      ]
+    },
+    {
+      "clientID": "0xf2a435e1205f5beb3ce2ce8309530a92816b8a22",
+      "name": "margaret",
+      "numbers": [
+        28522
+      ]
+    },
+    {
+      "clientID": "0xf4c54cd69f016d7495ac5edcb2100a35abfbba28",
+      "name": "Fabled | TSOTG",
+      "numbers": [
+        28393
+      ]
+    },
+    {
+      "clientID": "0xf5c910db981b564f3a5a49f51aab4f24e9dc9741",
+      "name": "Jeanmel x Carlo and EGM collab",
+      "numbers": [
+        28537,
+        28538,
+        28539,
+        28430,
+        28431,
+        28432
+      ]
+    },
+    {
+      "clientID": "0xf74ac06cad17005a23fa0c09388a8bc73728ad4c",
+      "name": "DLmaracucho",
+      "numbers": [
+        28401
+      ]
+    },
+    {
+      "clientID": "0xf8d110ce97f638ce2865177b0e3524c4da0dc100",
+      "name": "AxeWooD",
+      "numbers": [
+        28560
+      ]
+    },
+    {
+      "clientID": "0xfe12c71fb01a2778b3bdcbc77890ae7de393f500",
+      "name": "Cid",
+      "numbers": [
+        28573,
+        28577,
+        28578,
+        28579,
+        28580,
+        28581
+      ]
+    },
+    {
+      "clientID": "0xfeab9bfabc3b7e40e027c6670ab45d452007ab82",
+      "name": "sheuden | CDG",
+      "numbers": [
+        28463
+      ]
+    }
+  ],
+  "pagination": {
+    "offset": 100,
+    "limit": 100,
+    "total": 109
+  },
+  "totalTickets": 436,
+  "firstTicketID": 28345
+}

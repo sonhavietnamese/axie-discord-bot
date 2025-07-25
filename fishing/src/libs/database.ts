@@ -1,13 +1,12 @@
-import { Database } from 'bun:sqlite'
-import { drizzle } from 'drizzle-orm/bun-sqlite'
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { FISHES } from '../configs/fishes'
 import { NFTs } from '../configs/nfts'
 import { RODS } from '../configs/rods'
 import { TRASHES } from '../configs/trashes'
-import { fishes, nfts, rods, trashes, exchanges } from '../schema'
+import { fishes, nfts, rods, trashes, exchanges, rodStore } from '../schema'
 
-// Create database connection using Bun's global Database
-// @ts-ignore - Bun provides Database globally
+// Create database connection using better-sqlite3
 const dbPath = './dev-v002.db'
 const sqlite = new Database(dbPath)
 export const db = drizzle(sqlite)
@@ -54,6 +53,16 @@ export async function seedFishData() {
     console.log(`✅ Inserted ${rodsToInsert.length} rod IDs`)
   } else {
     console.log(`ℹ️ Rods table already has ${existingRods.length} entries`)
+  }
+
+  // Seed rod store table
+  const existingRodStore = await db.select().from(rodStore)
+  if (existingRodStore.length === 0) {
+    const rodStoreToInsert = RODS.map((rod) => ({ id: rod.id, rodId: rod.id, stock: 0 }))
+    await db.insert(rodStore).values(rodStoreToInsert)
+    console.log(`✅ Inserted ${rodStoreToInsert.length} rod store entries`)
+  } else {
+    console.log(`ℹ️ Rod store table already has ${existingRodStore.length} entries`)
   }
 
   console.log('🎉 Database seeding completed!')

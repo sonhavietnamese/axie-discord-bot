@@ -3,8 +3,8 @@ import { createCommandConfig, Flashcore, logger } from 'robo.js'
 import { GAME_READY_DURATION } from '../../configs/game'
 import { EVENT_DURATION, STORAGE_KEYS } from '../../constants'
 import { randomPlayer } from '../../libs/nft'
-import { assignRod, computeCDNUrl, isAdmin, isWhitelisted, require } from '../../libs/utils'
-import { addParticipant, createFishingEvent, nuke, startFishingEvent } from '../../services/hanana'
+import { computeCDNUrl, isAdmin, isWhitelisted, require } from '../../libs/utils'
+import { createFishingEvent, nuke, startFishingEvent } from '../../services/hanana'
 import { batchCreateUsers } from '../../services/user'
 import { FishingEventHappening, FishingEventStatus } from '../../types'
 
@@ -36,13 +36,15 @@ export default async (interaction: ChatInputCommandInteraction) => {
     content:
       '🎣 **Fishing Hanana is Open!**\n\n' +
       '🕒 **Duration:** 15 minutes\n' +
-      '🎯 **How to participate:** React with 🎣 to join the event!\n\n' +
+      '🎯 **How to participate:** Make sure you have a rod in your inventory!\n\n' +
       '💫 **Useful commands:**\n' +
       '1. `/cast` - Cast your line and catch a fish!\n' +
       '2. `/inventory` - View your inventory!\n' +
       '3. `/rod` - View your rod!\n' +
-      "4. `/et-store` - Go to the ET's Seafood Store!\n\n" +
-      '⏰ Event starts in 2 minutes...',
+      "4. `/fishing-store rod` - Buy a rod if you don't have one!\n" +
+      "5. `/fishing-store et` - Go to the ET's Seafood Store!\n\n" +
+      '⏰ Event starts in 2 minutes...\n\n' +
+      "**Note:** You need to own a rod to participate. Buy one from the Rod Store if you don't have any!",
     files: [
       {
         attachment: computeCDNUrl('thumbnail-001'),
@@ -55,7 +57,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
   await Flashcore.set<FishingEventHappening>(STORAGE_KEYS.HAPPENING, {
     channelId: interaction.channelId,
     startTime: Date.now(),
-    endTime: Date.now() + EVENT_DURATION, // 10 minutes
+    endTime: Date.now() + EVENT_DURATION, // 15 minutes
     status: FishingEventStatus.PENDING,
   })
 
@@ -74,126 +76,59 @@ export default async (interaction: ChatInputCommandInteraction) => {
       await response.react('🎣')
     }
 
-    // Set up interval to send follow-up messages with reaction count and track participants
+    // Set up countdown timer to start the event
     const startTime = Date.now()
     const countdownDuration = GAME_READY_DURATION // 120 second countdown
-    const updateInterval = 20 * 1000 // 20 seconds
 
-    const intervalId = setInterval(async () => {
-      try {
-        // Check if we've exceeded the countdown duration
-        if (Date.now() - startTime > countdownDuration) {
-          clearInterval(intervalId)
-
-          // Fetch the latest message to get reaction users and add them as participants
-          const channel = interaction.channel || (await interaction.client.channels.fetch(interaction.channelId))
-          if (channel && channel.isTextBased()) {
-            try {
-              const updatedMessage = await channel.messages.fetch(response.id)
-              const fishingReaction = updatedMessage.reactions.cache.get('🎣')
-
-              if (fishingReaction) {
-                const users = await fishingReaction.users.fetch()
-                const filteredUsers = users.filter((user) => !user.bot)
-
-                const { inserted, existing } = await batchCreateUsers(
-                  filteredUsers.map((user) => ({ id: user.id, name: user.globalName || user.username })),
-                )
-
-                const allUsers = [...inserted, ...existing]
-
-                const assignedRods = await assignRod(allUsers, interaction.guild!)
-
-                // TODO: pick the won axie winner
-                randomPlayer(allUsers.map((user) => user.id))
-
-                await addParticipant(
-                  createdEvent.id,
-                  allUsers.map((user) => user.id),
-                  assignedRods.map((user) => user.rod.id),
-                )
-                await startFishingEvent(createdEvent.id)
-              }
-            } catch (error) {
-              logger.error('Error fetching reaction users:', error)
-            }
-          }
-
-          const happening = await Flashcore.get<FishingEventHappening>(STORAGE_KEYS.HAPPENING)
-
-          if (happening) {
-            happening.status = FishingEventStatus.ACTIVE
-            await Flashcore.set<FishingEventHappening>(STORAGE_KEYS.HAPPENING, happening)
-          }
-
-          await Flashcore.set<FishingEventHappening>(STORAGE_KEYS.HAPPENING, {
-            channelId: interaction.channelId,
-            startTime: Date.now(),
-            endTime: Date.now() + EVENT_DURATION, // 10 minutes
-            status: FishingEventStatus.ACTIVE,
-          })
-
-          await interaction.followUp({
-            content:
-              '💫 **Fishing Hanana STARTED!**\n\n' +
-              '> Rod assigned to all of you! You can view your rod with command `/rod`\n\n' +
-              '🎣 Participants can now use command `/cast` to start fishing!\n\n' +
-              '_Good luck and happy fishing 🐟🐠🐡!_',
-          })
-
-          return
-        }
-
-        // Fetch the latest message to get updated reaction counts
-        const channel = interaction.channel || (await interaction.client.channels.fetch(interaction.channelId))
-        if (!channel || !channel.isTextBased()) {
-          clearInterval(intervalId)
-          return
-        }
-
-        // const updatedMessage = await channel.messages.fetch(response.resource?.message?.id || '')
-        // const fishingReaction = updatedMessage.reactions.cache.get('🎣')
-        // const reactionCount = fishingReaction ? fishingReaction.count - 1 : 0 // Subtract 1 for the bot's reaction
-
-        // Send follow-up with current participant count
-        // await interaction.followUp({
-        //   content: `🎣 **Fishing Event Update:** ${reactionCount} ${
-        //     reactionCount === 1 ? 'angler has' : 'anglers have'
-        //   } joined the fishing event! React with 🎣 to participate!`,
-        // })
-      } catch (error) {
-        logger.error('Error in fishing event update:', error)
-        clearInterval(intervalId)
-      }
-    }, updateInterval)
-
-    // Send first update after 5 seconds
     setTimeout(async () => {
       try {
-        const channel = interaction.channel || (await interaction.client.channels.fetch(interaction.channelId))
-        if (!channel || !channel.isTextBased()) return
+        // Start the fishing event
+        await startFishingEvent(createdEvent.id)
 
-        const updatedMessage = await channel.messages.fetch(response.id)
-        const fishingReaction = updatedMessage.reactions.cache.get('🎣')
-        const reactionCount = fishingReaction ? fishingReaction.count - 1 : 0
+        const happening = await Flashcore.get<FishingEventHappening>(STORAGE_KEYS.HAPPENING)
 
-        if (reactionCount === 0) {
-          await interaction.followUp({
-            content: `🎣 **Get Ready!** No one has joined yet! React with 🎣 to participate before the event starts!`,
-          })
-        } else {
-          await interaction.followUp({
-            content: `🎣 **Get Ready!** ${reactionCount} ${
-              reactionCount === 1 ? 'angler has' : 'anglers have'
-            } joined! \nReact with 🎣 to participate before the event starts!`,
-          })
+        if (happening) {
+          happening.status = FishingEventStatus.ACTIVE
+          await Flashcore.set<FishingEventHappening>(STORAGE_KEYS.HAPPENING, happening)
         }
+
+        await Flashcore.set<FishingEventHappening>(STORAGE_KEYS.HAPPENING, {
+          channelId: interaction.channelId,
+          startTime: Date.now(),
+          endTime: Date.now() + EVENT_DURATION, // 15 minutes
+          status: FishingEventStatus.ACTIVE,
+        })
+
+        await interaction.followUp({
+          content:
+            '💫 **Fishing Hanana STARTED!**\n\n' +
+            '🎣 **Ready to fish!** Use `/cast` to start fishing!\n\n' +
+            '📝 **Requirements:**\n' +
+            '• You must have a rod in your inventory\n' +
+            '• Buy rods from `/fishing-store rod` if needed\n' +
+            '• View your rods with `/rod` command\n\n' +
+            '_Good luck and happy fishing 🐟🐠🐡!_',
+        })
+
+        // TODO: pick the won axie winner - simplified since we're not tracking participants
+        // randomPlayer([]) // Empty for now since we don't track participants anymore
       } catch (error) {
-        logger.error('Error sending first update:', error)
+        logger.error('Error starting fishing event:', error)
       }
-    }, 5000)
+    }, countdownDuration)
+
+    // Send countdown updates
+    setTimeout(async () => {
+      try {
+        await interaction.followUp({
+          content: `🎣 **Get Ready!** Fishing event starts in 1 minute!\n\nMake sure you have a rod in your inventory to participate!`,
+        })
+      } catch (error) {
+        logger.error('Error sending countdown update:', error)
+      }
+    }, countdownDuration - 60000) // 1 minute before start
   } catch (error) {
-    logger.error('Failed to add reaction:', error)
+    logger.error('Failed to set up fishing event:', error)
     // Continue execution even if reaction fails
   }
 }

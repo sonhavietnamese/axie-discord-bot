@@ -1,8 +1,8 @@
 import { and, eq, inArray, like, sql } from 'drizzle-orm'
 import { BASE_FISHING_RATES } from '../configs/game'
 import { db } from '../libs/database'
-import { getStuff } from '../libs/utils'
-import { exchanges, hanana, hananaParticipants, users, type Inventory, migrateInventory, ensureInventoryStructure } from '../schema'
+import { getStuff, useRod, getUsableRods, addToInventory } from '../libs/utils'
+import { exchanges, hanana, users, type Inventory, migrateInventory, ensureInventoryStructure } from '../schema'
 
 // Helper function to parse and migrate inventory
 function parseInventory(inventoryJson: string): Inventory {
@@ -24,33 +24,10 @@ function updateFishInventoryItem(inventory: Inventory, itemId: string, quantity:
   }
 }
 
-// Helper function to update rod item in inventory
-function updateRodInventoryItem(inventory: Inventory, itemId: string, quantity: number = 1): Inventory {
-  return {
-    ...inventory,
-    rods: {
-      ...inventory.rods,
-      [itemId]: (inventory.rods[itemId] || 0) + quantity,
-    },
-  }
-}
-
 // Helper function to update any item in inventory (auto-detects type)
 function updateInventoryItem(inventory: Inventory, itemId: string, quantity: number = 1, itemType?: 'fish' | 'rod'): Inventory {
-  // Auto-detect item type if not specified
-  if (!itemType) {
-    if (itemId === '000' || (itemId >= '001' && itemId <= '006')) {
-      itemType = 'fish'
-    } else {
-      itemType = 'rod'
-    }
-  }
-
-  if (itemType === 'fish') {
-    return updateFishInventoryItem(inventory, itemId, quantity)
-  } else {
-    return updateRodInventoryItem(inventory, itemId, quantity)
-  }
+  // Use the utility function from utils.ts that handles both fish and rods properly
+  return addToInventory(inventory, itemId, quantity, itemType)
 }
 
 // Get or create a user
@@ -199,10 +176,27 @@ export async function handleUserCatch(userId: string, rates: number[], stuffId: 
   }
 
   return db.transaction(async (tx) => {
-    // 1. Update user rates and inventory
+    // 1. Get current inventory and reduce rod uses
     const currentInventory = parseInventory(user.inventory)
-    const updatedInventory = stuffId ? updateInventoryItem(currentInventory, stuffId, 1, 'fish') : currentInventory
 
+    // Find the rod that was used (first usable rod)
+    const usableRods = getUsableRods(currentInventory)
+    let updatedInventory = currentInventory
+
+    if (usableRods.length > 0) {
+      // Use the first usable rod (reduce uses by 1)
+      const usedRodId = usableRods[0].rodId
+      updatedInventory = useRod(currentInventory, usedRodId, 1)
+
+      console.log(`🎣 Rod used: ${usedRodId}, uses remaining: ${updatedInventory.rods[usedRodId]?.usesLeft || 0}`)
+    }
+
+    // 2. Add caught item to inventory (if successful catch)
+    if (stuffId) {
+      updatedInventory = updateInventoryItem(updatedInventory, stuffId, 1, 'fish')
+    }
+
+    // 3. Update user rates and inventory
     await tx
       .update(users)
       .set({
@@ -212,20 +206,23 @@ export async function handleUserCatch(userId: string, rates: number[], stuffId: 
       })
       .where(eq(users.id, userId))
 
-    // 2. Increment rod uses in active hanana event
-    const activeEvent = await tx
-      .select()
-      .from(hanana)
-      .where(and(like(hanana.id, `${guildId}_${channelId}_%`), eq(hanana.status, 'active')))
-      .get()
+    // 4. Record fishing activity in history (if there's a catch and active event)
+    if (stuffId && guildId && channelId) {
+      // Find active event for this channel
+      const activeEvent = await tx
+        .select()
+        .from(hanana)
+        .where(and(like(hanana.id, `${guildId}_${channelId}_%`), eq(hanana.status, 'active')))
+        .get()
 
-    if (activeEvent) {
-      await tx
-        .update(hananaParticipants)
-        .set({
-          uses: sql`${hananaParticipants.uses} + 1`,
-        })
-        .where(and(eq(hananaParticipants.hananaId, activeEvent.id), eq(hananaParticipants.userId, userId)))
+      if (activeEvent) {
+        // Get user's rod that was used from the original inventory
+        const rodUsed = usableRods[0]?.rodId || 'unknown'
+
+        // Record fishing activity
+        const { addFishingHistory } = await import('./hanana')
+        await addFishingHistory(userId, activeEvent.id, stuffId, rodUsed)
+      }
     }
 
     // Return updated user data
