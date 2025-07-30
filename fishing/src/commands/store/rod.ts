@@ -12,6 +12,7 @@ import { type RodStoreIntern } from '../../schema'
 import { getCandyBalance } from '../../services/drip'
 import { getCurrentRodStoreIntern, getRodStoreStock } from '../../services/rod-store'
 import { trackEvent, trackIdentity } from '../../libs/tracking'
+import { isWhitelisted, require } from '../../libs/utils'
 
 export const config = createCommandConfig({
   description: 'Enter Rod Store',
@@ -19,6 +20,13 @@ export const config = createCommandConfig({
 } as const)
 
 export default async (interaction: ChatInputCommandInteraction) => {
+  try {
+    await require(isWhitelisted(interaction.guildId, interaction.channelId), 'This command can only be used in #game-zone', interaction)
+  } catch (error) {
+    // The require function has already replied to the interaction
+    return
+  }
+
   await interaction.deferReply({ flags: MessageFlags.Ephemeral })
 
   trackIdentity({

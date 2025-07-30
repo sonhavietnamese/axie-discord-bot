@@ -1,10 +1,10 @@
 import type { ChatInputCommandInteraction } from 'discord.js'
 import { ButtonStyle, ComponentType, MessageFlags } from 'discord.js'
 import { createCommandConfig } from 'robo.js'
-import { computeCDNUrl } from '../../libs/utils'
+import { trackEvent, trackIdentity } from '../../libs/tracking'
+import { computeCDNUrl, isWhitelisted, require } from '../../libs/utils'
 import { getCandyBalance } from '../../services/drip'
 import { getUserInventory } from '../../services/user'
-import { trackIdentity, trackEvent } from '../../libs/tracking'
 
 export const config = createCommandConfig({
   description: 'Rock Store - Candy Machine',
@@ -12,6 +12,12 @@ export const config = createCommandConfig({
 } as const)
 
 export default async (interaction: ChatInputCommandInteraction) => {
+  try {
+    await require(isWhitelisted(interaction.guildId, interaction.channelId), 'This command can only be used in #game-zone', interaction)
+  } catch (error) {
+    return
+  }
+
   await interaction.deferReply({ flags: MessageFlags.Ephemeral })
 
   trackIdentity({

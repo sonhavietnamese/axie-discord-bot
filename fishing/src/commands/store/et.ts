@@ -1,7 +1,7 @@
 import type { ChatInputCommandInteraction } from 'discord.js'
 import { ButtonStyle, ComponentType, MessageFlags, PermissionFlagsBits } from 'discord.js'
 import { createCommandConfig } from 'robo.js'
-import { computeCDNUrl, getStuff } from '../../libs/utils'
+import { computeCDNUrl, getStuff, isAdmin, isWhitelisted, require } from '../../libs/utils'
 import { getUserInventory } from '../../services/user'
 import { trackIdentity, trackEvent } from '../../libs/tracking'
 
@@ -12,6 +12,13 @@ export const config = createCommandConfig({
 } as const)
 
 export default async (interaction: ChatInputCommandInteraction) => {
+  try {
+    await require(isWhitelisted(interaction.guildId, interaction.channelId), 'This command can only be used in #game-zone', interaction)
+  } catch (error) {
+    // The require function has already replied to the interaction
+    return
+  }
+
   await interaction.deferReply({ flags: MessageFlags.Ephemeral })
 
   trackIdentity({

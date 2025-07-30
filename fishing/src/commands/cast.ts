@@ -1,16 +1,24 @@
 import { ChannelType, ChatInputCommandInteraction, ComponentType } from 'discord.js'
 import { createCommandConfig, logger } from 'robo.js'
 import { createSessionKey, fishingSessions } from '../events/interactionCreate'
+import { trackEvent, trackIdentity } from '../libs/tracking'
 import { createButtonsWithDistraction, generateRandomNumbers, getRod, getUsableRods, isWhitelisted, require } from '../libs/utils'
 import { getOrCreateUser, getUserInventory, getUserRate, handleUserCatch } from '../services/user'
-import { trackIdentity, trackEvent } from '../libs/tracking'
 
 export const config = createCommandConfig({
   description: 'Cast your line and catch a fish',
 } as const)
 
 export default async (interaction: ChatInputCommandInteraction) => {
-  logger.info(`Cast command used by ${interaction.user}`)
+  try {
+    await require(interaction.channel?.type === ChannelType.GuildText, 'This command can only be used in a text channel', interaction)
+    await require(isWhitelisted(interaction.guildId, interaction.channelId), 'This command can only be used in #game-zone', interaction)
+  } catch (error) {
+    // The require function has already replied to the interaction
+    return
+  }
+
+  await interaction.deferReply({ ephemeral: true })
 
   trackIdentity({
     id: interaction.user.id,
@@ -27,16 +35,6 @@ export default async (interaction: ChatInputCommandInteraction) => {
       server_id: interaction.guildId,
     },
   })
-
-  await interaction.deferReply({ ephemeral: true })
-
-  try {
-    await require(interaction.channel?.type === ChannelType.GuildText, 'This command can only be used in a text channel', interaction)
-    await require(isWhitelisted(interaction.guildId, interaction.channelId), 'This command can only be used in whitelisted channels', interaction)
-  } catch (error) {
-    // The require function has already replied to the interaction
-    return
-  }
 
   // Check if user already has an active fishing session
   const sessionKey = createSessionKey(interaction.user.id, interaction.channelId)

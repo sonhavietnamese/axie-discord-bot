@@ -1,4 +1,4 @@
-import { ButtonStyle, ChatInputCommandInteraction, ComponentType, Guild } from 'discord.js'
+import { ButtonStyle, ChatInputCommandInteraction, ComponentType, Guild, MessageFlags } from 'discord.js'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -40,7 +40,7 @@ export async function require<T extends ChatInputCommandInteraction>(condition: 
   if (!condition) {
     await interaction.reply({
       content: message,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     })
 
     throw new Error(message)

@@ -3,6 +3,7 @@ import { createCommandConfig } from 'robo.js'
 import { ROD_STORE_INTERN_ROLE_ID } from '../../configs/game'
 import { addStoreIntern } from '../../services/rod-store'
 import { trackIdentity, trackEvent } from '../../libs/tracking'
+import { isAdmin, isWhitelisted, require } from '../../libs/utils'
 
 export const config = createCommandConfig({
   description: 'Hire a store intern',
@@ -19,6 +20,14 @@ export const config = createCommandConfig({
 } as const)
 
 export default async (interaction: ChatInputCommandInteraction) => {
+  try {
+    await require(isAdmin(interaction.user.id), 'You must be an admin to use this command', interaction)
+    await require(isWhitelisted(interaction.guildId, interaction.channelId), 'This command can only be used in whitelisted channels', interaction)
+  } catch (error) {
+    // The require function has already replied to the interaction
+    return
+  }
+
   await interaction.deferReply({ flags: MessageFlags.Ephemeral })
 
   trackIdentity({
