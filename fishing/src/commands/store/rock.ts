@@ -4,6 +4,7 @@ import { createCommandConfig } from 'robo.js'
 import { computeCDNUrl } from '../../libs/utils'
 import { getCandyBalance } from '../../services/drip'
 import { getUserInventory } from '../../services/user'
+import { trackIdentity, trackEvent } from '../../libs/tracking'
 
 export const config = createCommandConfig({
   description: 'Rock Store - Candy Machine',
@@ -12,6 +13,22 @@ export const config = createCommandConfig({
 
 export default async (interaction: ChatInputCommandInteraction) => {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral })
+
+  trackIdentity({
+    id: interaction.user.id,
+    username: interaction.user.username,
+    globalName: interaction.user.globalName || interaction.user.username,
+  })
+
+  trackEvent({
+    id: interaction.user.id,
+    event: '/store_rock',
+    action: '/store_rock',
+    action_properties: {
+      user_id: interaction.user.id,
+      server_id: interaction.guildId,
+    },
+  })
 
   const candyBalance = await getCandyBalance(interaction.user.id)
   const inventory = await getUserInventory(interaction.user.id)

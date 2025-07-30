@@ -2,6 +2,7 @@ import { MessageFlags, type ChatInputCommandInteraction } from 'discord.js'
 import { createCommandConfig } from 'robo.js'
 import { getStuff, getRod } from '../libs/utils'
 import { getUserInventory } from '../services/user'
+import { trackIdentity, trackEvent } from '../libs/tracking'
 
 export const config = createCommandConfig({
   description: 'View your inventory',
@@ -10,6 +11,22 @@ export const config = createCommandConfig({
 
 export default async (interaction: ChatInputCommandInteraction) => {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral })
+
+  trackIdentity({
+    id: interaction.user.id,
+    username: interaction.user.username,
+    globalName: interaction.user.globalName || interaction.user.username,
+  })
+
+  trackEvent({
+    id: interaction.user.id,
+    event: '/inventory',
+    action: '/inventory',
+    action_properties: {
+      user_id: interaction.user.id,
+      server_id: interaction.guildId,
+    },
+  })
 
   const rawInventory = await getUserInventory(interaction.user.id)
 

@@ -3,6 +3,7 @@ import { ButtonStyle, ComponentType, MessageFlags, PermissionFlagsBits } from 'd
 import { createCommandConfig } from 'robo.js'
 import { computeCDNUrl, getStuff } from '../../libs/utils'
 import { getUserInventory } from '../../services/user'
+import { trackIdentity, trackEvent } from '../../libs/tracking'
 
 export const config = createCommandConfig({
   description: "Enter ET's Seafood Store",
@@ -12,6 +13,22 @@ export const config = createCommandConfig({
 
 export default async (interaction: ChatInputCommandInteraction) => {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral })
+
+  trackIdentity({
+    id: interaction.user.id,
+    username: interaction.user.username,
+    globalName: interaction.user.globalName || interaction.user.username,
+  })
+
+  trackEvent({
+    id: interaction.user.id,
+    event: '/store_et',
+    action: '/store_et',
+    action_properties: {
+      user_id: interaction.user.id,
+      server_id: interaction.guildId,
+    },
+  })
 
   let inventory = await getUserInventory(interaction.user.id)
 

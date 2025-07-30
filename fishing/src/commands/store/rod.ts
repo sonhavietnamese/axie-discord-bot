@@ -11,6 +11,7 @@ import { font, storeBackgroundBase64 } from '../../core/preload'
 import { type RodStoreIntern } from '../../schema'
 import { getCandyBalance } from '../../services/drip'
 import { getCurrentRodStoreIntern, getRodStoreStock } from '../../services/rod-store'
+import { trackEvent, trackIdentity } from '../../libs/tracking'
 
 export const config = createCommandConfig({
   description: 'Enter Rod Store',
@@ -19,6 +20,22 @@ export const config = createCommandConfig({
 
 export default async (interaction: ChatInputCommandInteraction) => {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral })
+
+  trackIdentity({
+    id: interaction.user.id,
+    username: interaction.user.username,
+    globalName: interaction.user.globalName || interaction.user.username,
+  })
+
+  trackEvent({
+    id: interaction.user.id,
+    event: '/store_rod',
+    action: '/store_rod',
+    action_properties: {
+      user_id: interaction.user.id,
+      server_id: interaction.guildId,
+    },
+  })
 
   const intern = await getCurrentRodStoreIntern()
 

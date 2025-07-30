@@ -11,6 +11,10 @@ declare global {
       REALM_ID: string
       CURRENCY_ID: string
       DRIP_API_KEY: string
+      RONIN_PROJECT_ID: string
+      RONIN_API_KEY: string
+      RONIN_TRACKING_AUTHORIZATION: string
+      VERSION: string
     }
   }
 }

@@ -3,6 +3,7 @@ import { createCommandConfig, logger } from 'robo.js'
 import { createSessionKey, fishingSessions } from '../events/interactionCreate'
 import { createButtonsWithDistraction, generateRandomNumbers, getRod, getUsableRods, isWhitelisted, require } from '../libs/utils'
 import { getOrCreateUser, getUserInventory, getUserRate, handleUserCatch } from '../services/user'
+import { trackIdentity, trackEvent } from '../libs/tracking'
 
 export const config = createCommandConfig({
   description: 'Cast your line and catch a fish',
@@ -10,6 +11,22 @@ export const config = createCommandConfig({
 
 export default async (interaction: ChatInputCommandInteraction) => {
   logger.info(`Cast command used by ${interaction.user}`)
+
+  trackIdentity({
+    id: interaction.user.id,
+    username: interaction.user.username,
+    globalName: interaction.user.globalName || interaction.user.username,
+  })
+
+  trackEvent({
+    id: interaction.user.id,
+    event: '/cast',
+    action: '/cast',
+    action_properties: {
+      user_id: interaction.user.id,
+      server_id: interaction.guildId,
+    },
+  })
 
   await interaction.deferReply({ ephemeral: true })
 

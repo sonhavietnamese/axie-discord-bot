@@ -2,6 +2,7 @@ import { MessageFlags, PermissionFlagsBits, type ChatInputCommandInteraction } f
 import { createCommandConfig } from 'robo.js'
 import { ROD_STORE_INTERN_ROLE_ID } from '../../configs/game'
 import { fireStoreIntern } from '../../services/rod-store'
+import { trackEvent, trackIdentity } from '../../libs/tracking'
 
 export const config = createCommandConfig({
   description: 'Fire a store intern',
@@ -19,6 +20,22 @@ export const config = createCommandConfig({
 
 export default async (interaction: ChatInputCommandInteraction) => {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral })
+
+  trackIdentity({
+    id: interaction.user.id,
+    username: interaction.user.username,
+    globalName: interaction.user.globalName || interaction.user.username,
+  })
+
+  trackEvent({
+    id: interaction.user.id,
+    event: '/store_fire',
+    action: '/store_fire',
+    action_properties: {
+      user_id: interaction.user.id,
+      server_id: interaction.guildId,
+    },
+  })
 
   const user = interaction.options.getUser('user')
 
