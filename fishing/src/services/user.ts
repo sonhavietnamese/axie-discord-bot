@@ -3,6 +3,7 @@ import { BASE_FISHING_RATES } from '../configs/game'
 import { db } from '../libs/database'
 import { getStuff, useRod, getUsableRods, addToInventory } from '../libs/utils'
 import { exchanges, hanana, users, type Inventory, migrateInventory, ensureInventoryStructure } from '../schema'
+import { addFishingHistory } from './hanana'
 
 // Helper function to parse and migrate inventory
 function parseInventory(inventoryJson: string): Inventory {
@@ -175,7 +176,7 @@ export async function handleUserCatch(userId: string, rates: number[], stuffId: 
     return null
   }
 
-  return db.transaction(async (tx) => {
+  await db.transaction((tx) => {
     // 1. Get current inventory and reduce rod uses
     const currentInventory = parseInventory(user.inventory)
 
@@ -197,8 +198,7 @@ export async function handleUserCatch(userId: string, rates: number[], stuffId: 
     }
 
     // 3. Update user rates and inventory
-    await tx
-      .update(users)
+    tx.update(users)
       .set({
         rates: JSON.stringify(rates),
         inventory: JSON.stringify(updatedInventory),
@@ -209,7 +209,7 @@ export async function handleUserCatch(userId: string, rates: number[], stuffId: 
     // 4. Record fishing activity in history (if there's a catch and active event)
     if (stuffId && guildId && channelId) {
       // Find active event for this channel
-      const activeEvent = await tx
+      const activeEvent = tx
         .select()
         .from(hanana)
         .where(and(like(hanana.id, `${guildId}_${channelId}_%`), eq(hanana.status, 'active')))
@@ -219,17 +219,17 @@ export async function handleUserCatch(userId: string, rates: number[], stuffId: 
         // Get user's rod that was used from the original inventory
         const rodUsed = usableRods[0]?.rodId || 'unknown'
 
-        // Record fishing activity
-        const { addFishingHistory } = await import('./hanana')
-        await addFishingHistory(userId, activeEvent.id, stuffId, rodUsed)
+        // Record fishing activity - don't await inside transaction
+        addFishingHistory(userId, activeEvent.id, stuffId, rodUsed)
       }
     }
 
-    // Return updated user data
-    const updatedUser = await tx.select().from(users).where(eq(users.id, userId)).get()
-
-    return updatedUser
+    // Note: Don't return promises from transaction callback
+    // The transaction will automatically commit if no errors occur
   })
+
+  // Return updated user data after transaction completes
+  return await getUser(userId)
 }
 
 // Sell all items in user's inventory and record exchange
@@ -265,10 +265,10 @@ export async function sellAllItems(userId: string): Promise<{ success: boolean; 
   // Generate unique exchange ID
   const exchangeId = `exchange_${userId}_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
 
-  return db.transaction(async (tx) => {
+  return db.transaction((tx) => {
     try {
       // 1. Create exchange record first (for logging and double-spend prevention)
-      await tx.insert(exchanges).values({
+      tx.insert(exchanges).values({
         id: exchangeId,
         userId,
         itemsSold: JSON.stringify(itemsSold),
@@ -291,8 +291,7 @@ export async function sellAllItems(userId: string): Promise<{ success: boolean; 
         }
       }
 
-      await tx
-        .update(users)
+      tx.update(users)
         .set({
           inventory: JSON.stringify(updatedInventory),
           updatedAt: new Date().toISOString(),
@@ -300,7 +299,7 @@ export async function sellAllItems(userId: string): Promise<{ success: boolean; 
         .where(eq(users.id, userId))
 
       // 3. Mark exchange as completed
-      await tx.update(exchanges).set({ status: 'completed' }).where(eq(exchanges.id, exchangeId))
+      tx.update(exchanges).set({ status: 'completed' }).where(eq(exchanges.id, exchangeId))
 
       console.log(`💰 Exchange completed for user ${userId}: ${totalCandies} candies earned from selling items:`, itemsSold)
 
@@ -314,7 +313,7 @@ export async function sellAllItems(userId: string): Promise<{ success: boolean; 
 
       // Mark exchange as failed if it exists
       try {
-        await tx.update(exchanges).set({ status: 'failed' }).where(eq(exchanges.id, exchangeId))
+        tx.update(exchanges).set({ status: 'failed' }).where(eq(exchanges.id, exchangeId))
       } catch (updateError) {
         console.error('Failed to update exchange status to failed:', updateError)
       }

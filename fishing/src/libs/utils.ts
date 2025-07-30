@@ -1,16 +1,17 @@
 import { ButtonStyle, ChatInputCommandInteraction, ComponentType, Guild } from 'discord.js'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { FISHES } from '../configs/fishes'
 import { BASE_FISHING_RATES } from '../configs/game'
 import { NFTs } from '../configs/nfts'
+import type { Reward } from '../configs/rewards'
+import { CANDY_MACHINE_REWARDS } from '../configs/rewards'
 import { RODS } from '../configs/rods'
 import { TRASHES } from '../configs/trashes'
 import { CHANNELS, GUILDS } from '../configs/whitelist'
 import { ADMINS } from '../core/admin'
 import type { Inventory } from '../schema'
-
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -528,34 +529,39 @@ export function randomInRange(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
-/*
-INVENTORY USAGE EXAMPLES:
+export function getRandomReward() {
+  const rd = randomInRange(0, 100)
+  const candyRate = CANDY_MACHINE_REWARDS.candy.rate
+  const rockRate = CANDY_MACHINE_REWARDS.rock.rate
+  const fishRate = CANDY_MACHINE_REWARDS.fish.rate
 
-// Example inventory JSON format:
-const exampleInventory: Inventory = {
-  "000": 5,   // 5 trash items
-  "001": 10,  // 10 fish type 1
-  "002": 3,   // 3 fish type 2
-  "007": 1    // 1 NFT
+  const rewardType = rd <= candyRate ? 'candy' : rd <= candyRate + rockRate ? 'rock' : 'fish'
+
+  const rewards = CANDY_MACHINE_REWARDS[rewardType].sub
+  const rdSub = randomInRange(0, 100)
+
+  // Select sub-reward based on rates
+  let cumulativeRate = 0
+  let selectedSubReward: Reward | null = null
+
+  for (const [rarity, reward] of Object.entries(rewards)) {
+    const previousRate = cumulativeRate
+    cumulativeRate += reward.rate
+    if (rdSub > previousRate && rdSub <= cumulativeRate) {
+      selectedSubReward = reward
+      break
+    }
+  }
+
+  if (!selectedSubReward) {
+    selectedSubReward = rewards.common
+  }
+
+  const amount = randomInRange(1, selectedSubReward.maxAmount)
+
+  return {
+    id: selectedSubReward.id,
+    type: rewardType,
+    amount: amount,
+  }
 }
-
-// Get count of specific item:
-const trashCount = getInventoryItemCount(exampleInventory, "000") // Returns 5
-
-// Add items:
-const updatedInventory = addToInventory(exampleInventory, "001", 2) // Adds 2 fish type 1
-
-// Remove items:
-const afterRemoval = removeFromInventory(updatedInventory, "000", 3) // Removes 3 trash
-
-// Check if user has enough:
-const hasEnough = hasEnoughItems(exampleInventory, "001", 5) // Returns true (has 10, needs 5)
-
-// Get totals by type:
-const totalFish = getTotalFishCount(exampleInventory) // Returns 13 (10 + 3)
-const totalTrash = getTotalTrashCount(exampleInventory) // Returns 5
-const totalNFTs = getTotalNFTCount(exampleInventory) // Returns 1
-
-// Get items by type:
-const fishItems = getItemsByType(exampleInventory, 'fish') // Returns { "001": 10, "002": 3 }
-*/

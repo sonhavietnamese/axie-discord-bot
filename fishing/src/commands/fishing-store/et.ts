@@ -65,7 +65,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
     embeds: [
       {
         color: 0xc63b3b,
-        title: `${process.env.STORE_STATUS === 'open' ? '[OPEN]' : '[CLOSED]'} Gm bro, welcome to ET's Seafood Store!`,
+        title: `Gm bro, welcome to ET's Seafood Store!`,
         description: `${
           process.env.STORE_STATUS === 'open'
             ? 'Store is open, you can sell your fish here to get candies 🍬!'
@@ -92,22 +92,19 @@ export default async (interaction: ChatInputCommandInteraction) => {
         name: 'store-et.png',
       },
     ],
-    components:
-      process.env.STORE_STATUS === 'open' && parsedInventory.length > 0
-        ? [
-            {
-              type: ComponentType.ActionRow,
-              components: [
-                {
-                  type: ComponentType.Button,
-                  style: ButtonStyle.Success,
-                  label: 'Sell All Fish',
-                  customId: 'sell-all',
-                  emoji: '💰',
-                },
-              ],
-            },
-          ]
-        : [],
+    components: [
+      {
+        type: ComponentType.ActionRow,
+        components: [
+          {
+            type: ComponentType.Button,
+            style: ButtonStyle.Success,
+            label: 'Sell All Fish',
+            customId: 'sell-all',
+            emoji: '💰',
+          },
+        ],
+      },
+    ],
   })
 }

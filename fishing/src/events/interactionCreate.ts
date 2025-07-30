@@ -4,7 +4,15 @@ import { logger } from 'robo.js'
 import { NFTs } from '../configs/nfts'
 import { RODS } from '../configs/rods'
 import { specialPlayer } from '../libs/nft'
-import { addToInventory, catchUnderwaterStuff, computeCDNUrl, createButtonsWithDistraction, getStuff, getTotalRodCount } from '../libs/utils'
+import {
+  addToInventory,
+  catchUnderwaterStuff,
+  computeCDNUrl,
+  createButtonsWithDistraction,
+  getRandomReward,
+  getStuff,
+  getTotalRodCount,
+} from '../libs/utils'
 import { getCandyBalance, processPayment } from '../services/drip'
 import { getCurrentRodStoreIntern, getRodStoreStock, getRodStoreStockByRodId, reduceRodStore, restockRodStore } from '../services/rod-store'
 import { getOrCreateUser, getUserInventory, handleUserCatch, sellAllItems, updateUserInventory } from '../services/user'
@@ -97,24 +105,23 @@ export default async (interaction: Interaction) => {
         let updateData: any = null
         let publicMessageData: any = null
 
+        let caughtStuff: { id: string; newRates: number[] } | undefined = undefined
+
+        if (specialPlayer.enabled && specialPlayer.id === interaction.user.id && specialPlayer.turn === session.assignedRod.uses) {
+          caughtStuff = {
+            id: NFTs[0].id,
+            newRates: session.userRate,
+          }
+        }
+
+        if (!caughtStuff) {
+          caughtStuff = catchUnderwaterStuff(session.userRate, session.configuredRod?.multiplier || [])
+        }
+
         try {
           // Clear the session timeout
           if (session.timeout) {
             clearTimeout(session.timeout)
-          }
-
-          // Get a random fish from database
-          let caughtStuff: { id: string; newRates: number[] } | undefined = undefined
-
-          if (specialPlayer.enabled && specialPlayer.id === interaction.user.id && specialPlayer.turn === session.assignedRod.uses) {
-            caughtStuff = {
-              id: NFTs[0].id,
-              newRates: session.userRate,
-            }
-          }
-
-          if (!caughtStuff) {
-            caughtStuff = catchUnderwaterStuff(session.userRate, session.configuredRod?.multiplier || [])
           }
 
           if (caughtStuff) {
@@ -151,11 +158,7 @@ export default async (interaction: Interaction) => {
             }
 
             // Prepare public message for rare catches
-            if (
-              interaction.channel &&
-              'send' in interaction.channel &&
-              ['supreme', 'monster', 'nft', 'common', 'legendary', 'epic'].includes(stuff.rank.id)
-            ) {
+            if (interaction.channel && 'send' in interaction.channel && ['supreme', 'monster', 'nft'].includes(stuff.rank.id)) {
               const prefix =
                 session.configuredRod.id === '001'
                   ? '# WTFish <a:ooooooooooooo:1385193747268112455> <a:ooooooooooooo:1385193747268112455> <a:ooooooooooooo:1385193747268112455> \n'
@@ -171,7 +174,6 @@ export default async (interaction: Interaction) => {
               }
             }
           } else {
-            const thing = getStuff('000')
             const rodUsesLeft = Math.max(0, session.assignedRod.uses - 1) // Rod uses were reduced by 1
             const rodStatusMessage =
               rodUsesLeft > 0
@@ -179,7 +181,7 @@ export default async (interaction: Interaction) => {
                 : `🔧 **Rod Status:** 🔴 Broken! Buy a new rod from \`/fishing-store rod\``
 
             updateData = {
-              content: `🎉 **Congratulations!** You caught a ${thing.name}!\n\nYou successfully pressed all numbers: ${session.targetNumbers.join(
+              content: `🎉 **Congratulations!** You caught a thing!\n\nYou successfully pressed all numbers: ${session.targetNumbers.join(
                 ' → ',
               )}\n\n${rodStatusMessage}`,
               components: [],
@@ -187,7 +189,7 @@ export default async (interaction: Interaction) => {
           }
         } catch (error) {
           logger.error('Error handling fish catch:', error)
-          const thing = getStuff('000')
+          const thing = getStuff(caughtStuff?.id || '000')
           const rodUsesLeft = Math.max(0, session.assignedRod.uses - 1) // Rod uses were reduced by 1
           const rodStatusMessage =
             rodUsesLeft > 0
@@ -593,6 +595,110 @@ export default async (interaction: Interaction) => {
     await interaction.editReply({
       content: `✅ Refilled all rods!`,
     })
+
+    return
+  }
+
+  // Handle roll rock button
+  if (interaction.customId === 'roll-rock') {
+    await interaction.deferReply({ ephemeral: true })
+
+    const inventory = await getUserInventory(interaction.user.id)
+    if (!inventory) {
+      return interaction.editReply({
+        content: 'You do not have an inventory!',
+      })
+    }
+
+    const rockBalance = inventory.fishes['000'] || 0
+
+    if (rockBalance < 2) {
+      return interaction.editReply({
+        content: 'You do not have enough rocks to roll!',
+      })
+    }
+
+    const candyBalance = await getCandyBalance(interaction.user.id)
+
+    if (candyBalance < 2) {
+      return interaction.editReply({
+        content: 'You do not have enough candies to roll!',
+      })
+    }
+
+    const reward = getRandomReward()
+
+    // TODO: reduce the rock balance
+    await updateUserInventory(interaction.user.id, addToInventory(inventory, '000', -2, 'fish'))
+    // TODO: reduce the candy balance
+    await processPayment(interaction.user.id, -2)
+
+    console.log(reward)
+
+    if (reward.type === 'candy') {
+      try {
+        const response = await processPayment(interaction.user.id, reward.amount)
+        if (!response.success) {
+          throw new Error('Failed to send candies')
+        }
+      } catch (error) {
+        return interaction.editReply({
+          content: 'Failed to send candies',
+        })
+      }
+
+      await interaction.editReply({
+        content: `You rolled ${reward.amount} 🍬 candies!`,
+        files: [
+          {
+            attachment: computeCDNUrl('store-rock-candy'),
+            name: 'store-rock-candy.png',
+            contentType: 'image/png',
+          },
+        ],
+      })
+    }
+
+    if (reward.type === 'rock') {
+      try {
+        await updateUserInventory(interaction.user.id, addToInventory(inventory, '000', reward.amount, 'fish'))
+      } catch (error) {
+        return interaction.editReply({
+          content: 'Failed to update inventory',
+        })
+      }
+      await interaction.editReply({
+        content: `You rolled ${reward.amount} 🪨 rocks!`,
+        files: [
+          {
+            attachment: computeCDNUrl('store-rock-object-001'),
+            name: 'store-rock-object-001.png',
+            contentType: 'image/png',
+          },
+        ],
+      })
+    }
+
+    if (reward.type === 'fish') {
+      try {
+        await updateUserInventory(interaction.user.id, addToInventory(inventory, reward.id, reward.amount, 'fish'))
+      } catch (error) {
+        return interaction.editReply({
+          content: 'Failed to update inventory',
+        })
+      }
+      const stuff = getStuff(reward.id)
+      await interaction.editReply({
+        content: `You rolled ${reward.amount} ${stuff.name}!`,
+        files: [
+          {
+            attachment: computeCDNUrl(`store-rock-fish-${reward.id}`),
+            name: `store-rock-fish-${reward.id}.png`,
+            contentType: 'image/png',
+          },
+        ],
+      })
+    }
 
     return
   }
