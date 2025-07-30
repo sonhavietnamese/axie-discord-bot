@@ -1,6 +1,6 @@
+import { desc, eq, sql } from 'drizzle-orm'
 import { db } from '../libs/database'
 import { rodStore, rodStoreIntern } from '../schema'
-import { desc, eq, inArray, sql } from 'drizzle-orm'
 
 export async function getRodStoreIntern(userId: string) {
   const intern = db.select().from(rodStoreIntern).where(eq(rodStoreIntern.userId, userId)).get()

@@ -1,7 +1,6 @@
 import type { ChatInputCommandInteraction } from 'discord.js'
 import { ButtonStyle, ComponentType, MessageFlags } from 'discord.js'
 import { createCommandConfig } from 'robo.js'
-import { RODS } from '../../configs/rods'
 import { computeCDNUrl } from '../../libs/utils'
 import { getCandyBalance } from '../../services/drip'
 import { getUserInventory } from '../../services/user'

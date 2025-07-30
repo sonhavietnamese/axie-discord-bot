@@ -1,18 +1,8 @@
 import { ChannelType, ChatInputCommandInteraction, ComponentType } from 'discord.js'
 import { createCommandConfig, logger } from 'robo.js'
-import { RODS } from '../configs/rods'
 import { createSessionKey, fishingSessions } from '../events/interactionCreate'
-import {
-  createButtonsWithDistraction,
-  generateRandomNumbers,
-  isWhitelisted,
-  require,
-  getRod,
-  getUsableRods,
-  isRodBroken,
-  getRodUsesLeft,
-} from '../libs/utils'
-import { getUserInventory, getOrCreateUser, getUserRate, handleUserCatch } from '../services/user'
+import { createButtonsWithDistraction, generateRandomNumbers, getRod, getUsableRods, isWhitelisted, require } from '../libs/utils'
+import { getOrCreateUser, getUserInventory, getUserRate, handleUserCatch } from '../services/user'
 
 export const config = createCommandConfig({
   description: 'Cast your line and catch a fish',

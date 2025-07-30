@@ -4,7 +4,7 @@ import { FISHES } from '../configs/fishes'
 import { NFTs } from '../configs/nfts'
 import { RODS } from '../configs/rods'
 import { TRASHES } from '../configs/trashes'
-import { fishes, nfts, rods, trashes, exchanges, rodStore } from '../schema'
+import { fishes, nfts, rods, rodStore, trashes } from '../schema'
 
 // Create database connection using better-sqlite3
 const dbPath = './dev-v002.db'

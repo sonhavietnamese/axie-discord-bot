@@ -1,9 +1,9 @@
-import { eq, inArray, sql, like, and } from 'drizzle-orm'
+import { and, eq, inArray, like, sql } from 'drizzle-orm'
 import { db } from '../libs/database'
-import { hanana, fishingHistory, users } from '../schema'
 import { reset } from '../libs/nft'
+import { getUsableRods } from '../libs/utils'
+import { fishingHistory, hanana } from '../schema'
 import { getUserInventory } from './user'
-import { getTotalRodCount, getUsableRods } from '../libs/utils'
 
 // Create a new fishing event
 export async function createFishingEvent(guildId: string, channelId: string, createdBy: string) {
