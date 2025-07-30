@@ -170,35 +170,64 @@ export async function getUserRate(userId: string) {
 }
 
 export async function handleUserCatch(userId: string, rates: number[], stuffId: string | null, guildId: string | null, channelId: string) {
+  console.log(`🎣 handleUserCatch called for user ${userId}, stuffId: ${stuffId}`)
+
   const user = await getUser(userId)
 
   if (!user) {
+    console.log(`❌ User ${userId} not found`)
     return null
   }
 
-  await db.transaction((tx) => {
-    // 1. Get current inventory and reduce rod uses
-    const currentInventory = parseInventory(user.inventory)
+  console.log(`🎣 Processing catch for user ${userId}`)
 
-    // Find the rod that was used (first usable rod)
-    const usableRods = getUsableRods(currentInventory)
-    let updatedInventory = currentInventory
+  // 1. Get current inventory and reduce rod uses
+  const currentInventory = parseInventory(user.inventory)
 
-    if (usableRods.length > 0) {
-      // Use the first usable rod (reduce uses by 1)
-      const usedRodId = usableRods[0].rodId
-      updatedInventory = useRod(currentInventory, usedRodId, 1)
+  // Find the rod that was used (first usable rod)
+  const usableRods = getUsableRods(currentInventory)
+  let updatedInventory = currentInventory
+  let usedRodId: string | null = null
 
-      console.log(`🎣 Rod used: ${usedRodId}, uses remaining: ${updatedInventory.rods[usedRodId]?.usesLeft || 0}`)
+  if (usableRods.length > 0) {
+    // Use the first usable rod (reduce uses by 1)
+    usedRodId = usableRods[0].rodId
+    updatedInventory = useRod(currentInventory, usedRodId, 1)
+
+    console.log(`🎣 Rod used: ${usedRodId}, uses remaining: ${updatedInventory.rods[usedRodId]?.usesLeft || 0}`)
+  }
+
+  // 2. Add caught item to inventory (if successful catch) - preserve rod changes
+  if (stuffId) {
+    // Store the rod state before adding fish to ensure it's preserved
+    const rodStateBeforeFish = usedRodId ? updatedInventory.rods[usedRodId] : null
+
+    // Add fish to inventory
+    updatedInventory = updateInventoryItem(updatedInventory, stuffId, 1, 'fish')
+
+    // Explicitly restore rod state if it was modified
+    if (usedRodId && rodStateBeforeFish) {
+      updatedInventory = {
+        ...updatedInventory,
+        rods: {
+          ...updatedInventory.rods,
+          [usedRodId]: rodStateBeforeFish,
+        },
+      }
+
+      console.log(`🎣 Rod usage explicitly preserved: ${usedRodId}, uses remaining: ${rodStateBeforeFish.usesLeft}`)
     }
+  }
 
-    // 2. Add caught item to inventory (if successful catch)
-    if (stuffId) {
-      updatedInventory = updateInventoryItem(updatedInventory, stuffId, 1, 'fish')
-    }
+  console.log('updatedInventory', updatedInventory)
 
-    // 3. Update user rates and inventory
-    tx.update(users)
+  // 3. Update user rates and inventory directly (like updateUserInventory)
+  console.log(`🎣 Updating database for user ${userId}`)
+  console.log(`🎣 New inventory:`, JSON.stringify(updatedInventory, null, 2))
+
+  try {
+    await db
+      .update(users)
       .set({
         rates: JSON.stringify(rates),
         inventory: JSON.stringify(updatedInventory),
@@ -206,10 +235,17 @@ export async function handleUserCatch(userId: string, rates: number[], stuffId: 
       })
       .where(eq(users.id, userId))
 
-    // 4. Record fishing activity in history (if there's a catch and active event)
-    if (stuffId && guildId && channelId) {
+    console.log(`🎣 Database update completed for user ${userId}`)
+  } catch (error) {
+    console.error(`❌ Database update failed for user ${userId}:`, error)
+    throw error
+  }
+
+  // 4. Record fishing activity in history (if there's a catch and active event)
+  if (stuffId && guildId && channelId) {
+    try {
       // Find active event for this channel
-      const activeEvent = tx
+      const activeEvent = await db
         .select()
         .from(hanana)
         .where(and(like(hanana.id, `${guildId}_${channelId}_%`), eq(hanana.status, 'active')))
@@ -219,17 +255,24 @@ export async function handleUserCatch(userId: string, rates: number[], stuffId: 
         // Get user's rod that was used from the original inventory
         const rodUsed = usableRods[0]?.rodId || 'unknown'
 
-        // Record fishing activity - don't await inside transaction
+        // Record fishing activity
         addFishingHistory(userId, activeEvent.id, stuffId, rodUsed)
       }
+    } catch (historyError) {
+      console.error(`❌ Failed to record fishing history for user ${userId}:`, historyError)
+      // Don't fail the main operation if history recording fails
     }
+  }
 
-    // Note: Don't return promises from transaction callback
-    // The transaction will automatically commit if no errors occur
-  })
+  console.log(`🎣 handleUserCatch completed successfully for user ${userId}`)
 
-  // Return updated user data after transaction completes
-  return await getUser(userId)
+  // Return success result
+  return {
+    success: true,
+    updatedInventory,
+    usedRodId,
+    stuffId,
+  }
 }
 
 // Sell all items in user's inventory and record exchange

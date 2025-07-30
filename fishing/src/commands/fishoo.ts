@@ -16,8 +16,6 @@ export default async (interaction: ChatInputCommandInteraction) => {
     return
   }
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral })
-
   trackIdentity({
     id: interaction.user.id,
     username: interaction.user.username,

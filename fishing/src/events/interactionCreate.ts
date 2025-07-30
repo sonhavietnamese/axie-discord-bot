@@ -689,7 +689,7 @@ export default async (interaction: Interaction) => {
       }
       const stuff = getStuff(reward.id)
       await interaction.editReply({
-        content: `You rolled ${reward.amount} ${stuff.name}!`,
+        content: `## 🎉 You rolled ${reward.amount} ${stuff.name}!`,
         files: [
           {
             attachment: computeCDNUrl(`store-rock-fish-${reward.id}`),

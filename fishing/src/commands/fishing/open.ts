@@ -9,8 +9,6 @@ export const config = createCommandConfig({
 } as const)
 
 export default async (interaction: ChatInputCommandInteraction) => {
-  logger.info(`Start fishing event command used by ${interaction.user}`)
-
   try {
     await require(interaction.channel?.type === ChannelType.GuildText, 'This command can only be used in a text channel', interaction)
     await require(isAdmin(interaction.user.id), 'You must be an admin to use this command', interaction)
@@ -33,10 +31,10 @@ export default async (interaction: ChatInputCommandInteraction) => {
       '💫 **Useful commands:**\n' +
       '1. `/cast` - Cast your line and catch a fish!\n' +
       '2. `/inventory` - View your inventory!\n' +
-      '3. `/rod` - View your rod!\n' +
-      "4. `/fishing-store et` - Go to the ET's Seafood Store!\n" +
-      '5. `/fishing-store rod` - Go to the Rod Store!\n\n' +
-      "**Note:** You need to own a rod to participate. Buy one from the Rod Store if you don't have any!",
+      "3. `/store et` - Go to the ET's Seafood Store!\n" +
+      '4. `/store rod` - Go to the Rod Store! Go buy a rod!\n' +
+      '5. `/store rock` - Go to the Rock Store! Craft candies and rocks for extra rewards!\n' +
+      '6. `/fishoo` - Get a fishoo for poor people without Nitro!\n',
     files: [
       {
         attachment: computeCDNUrl('thumbnail-001'),

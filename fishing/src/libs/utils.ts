@@ -229,9 +229,9 @@ export function catchUnderwaterStuff(userRate: number[], multiplier: number[]) {
 
   for (let i = 0; i < multiplier.length; i++) {
     if (i === caughtIndex) {
-      newRates[i] = BASE_FISHING_RATES[i]
+      newRates[i] = BASE_FISHING_RATES[i] + multiplier[i]
     } else {
-      newRates[i] = baseRates[i] + multiplier[i]
+      newRates[i] += multiplier[i]
     }
   }
 

@@ -60,21 +60,23 @@ export default async (interaction: ChatInputCommandInteraction) => {
   const thumbnail = computeCDNUrl('store-rock')
 
   await interaction.editReply({
+    content: '## 🪨 Rock Store - 🍬 Candy Machine\n\nWelcome to the Rock Store! \nYou can craft 2 rocks and 2 candies for 1 roll.',
     embeds: [
       {
         color: 0xfff7d9,
-        title: `Rock Store - Candy Machine`,
-        description: `Welcome to the Rock Store! \n\nYou can craft 2 rocks and 2 candies for 1 roll.`,
-      },
-      {
-        color: 0xfff7d9,
-        title: `Your Candy Balance`,
-        description: `You have ${await getCandyBalance(interaction.user.id)} 🍬 candies`,
-      },
-      {
-        color: 0xfff7d9,
-        title: `Your Rock Balance`,
-        description: `You have ${rockBalance} 🪨 rocks`,
+        title: `Your Balance`,
+        fields: [
+          {
+            name: 'Candies',
+            value: `${candyBalance} 🍬`,
+            inline: true,
+          },
+          {
+            name: 'Rocks',
+            value: `${rockBalance} 🪨`,
+            inline: true,
+          },
+        ],
       },
     ],
     files: [{ name: `store-rock.png`, contentType: 'image/png', attachment: thumbnail }],
