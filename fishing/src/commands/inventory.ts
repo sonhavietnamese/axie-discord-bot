@@ -1,5 +1,5 @@
 import { MessageFlags, type ChatInputCommandInteraction } from 'discord.js'
-import { createCommandConfig } from 'robo.js'
+import { createCommandConfig, logger } from 'robo.js'
 import { getStuff, getRod, isWhitelisted, require } from '../libs/utils'
 import { getUserInventory } from '../services/user'
 import { trackIdentity, trackEvent } from '../libs/tracking'
@@ -16,6 +16,8 @@ export default async (interaction: ChatInputCommandInteraction) => {
     // The require function has already replied to the interaction
     return
   }
+
+  logger.info(`[command][/inventory][${interaction.user.id}][${interaction.user.username}]`)
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral })
 

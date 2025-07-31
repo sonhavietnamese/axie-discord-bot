@@ -1,5 +1,5 @@
 import { MessageFlags, type ChatInputCommandInteraction } from 'discord.js'
-import { createCommandConfig } from 'robo.js'
+import { createCommandConfig, logger } from 'robo.js'
 import { trackIdentity, trackEvent } from '../libs/tracking'
 import { isWhitelisted, require } from '../libs/utils'
 
@@ -15,6 +15,8 @@ export default async (interaction: ChatInputCommandInteraction) => {
     // The require function has already replied to the interaction
     return
   }
+
+  logger.info(`[command][/fishoo][${interaction.user.id}][${interaction.user.username}]`)
 
   trackIdentity({
     id: interaction.user.id,

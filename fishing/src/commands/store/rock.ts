@@ -1,6 +1,6 @@
 import type { ChatInputCommandInteraction } from 'discord.js'
 import { ButtonStyle, ComponentType, MessageFlags } from 'discord.js'
-import { createCommandConfig } from 'robo.js'
+import { createCommandConfig, logger } from 'robo.js'
 import { trackEvent, trackIdentity } from '../../libs/tracking'
 import { computeCDNUrl, isWhitelisted, require } from '../../libs/utils'
 import { getCandyBalance } from '../../services/drip'
@@ -17,6 +17,8 @@ export default async (interaction: ChatInputCommandInteraction) => {
   } catch (error) {
     return
   }
+
+  logger.info(`[command][/store_rock][${interaction.user.id}][${interaction.user.username}]`)
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral })
 

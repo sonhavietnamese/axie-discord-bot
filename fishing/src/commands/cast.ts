@@ -18,6 +18,8 @@ export default async (interaction: ChatInputCommandInteraction) => {
     return
   }
 
+  logger.info(`[command][/cast][${interaction.user.id}][${interaction.user.username}]`)
+
   await interaction.deferReply({ ephemeral: true })
 
   trackIdentity({

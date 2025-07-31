@@ -1,0 +1,3 @@
+export const BASE_FISHING_RATES = [60, 30, 30, 20, 5, 0, 0]
+export const GAME_READY_DURATION = Number(process.env.GAME_READY_DURATION)
+export const ROD_STORE_INTERN_ROLE_ID = '1398572300932223067'

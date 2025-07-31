@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1753418285030,
+      "tag": "0000_odd_natasha_romanoff",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1753420577865,
+      "tag": "0001_fancy_dracula",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1753932983185,
+      "tag": "0002_spotty_thor_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1753933189529,
+      "tag": "0003_workable_romulus",
+      "breakpoints": true
+    }
+  ]
+}

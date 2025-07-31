@@ -1,5 +1,5 @@
 import { MessageFlags, PermissionFlagsBits, type ChatInputCommandInteraction } from 'discord.js'
-import { createCommandConfig } from 'robo.js'
+import { createCommandConfig, logger } from 'robo.js'
 import { ROD_STORE_INTERN_ROLE_ID } from '../../configs/game'
 import { fireStoreIntern } from '../../services/rod-store'
 import { trackEvent, trackIdentity } from '../../libs/tracking'
@@ -27,6 +27,8 @@ export default async (interaction: ChatInputCommandInteraction) => {
     // The require function has already replied to the interaction
     return
   }
+
+  logger.info(`[command][/store_fire][${interaction.user.id}][${interaction.user.username}]`)
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral })
 

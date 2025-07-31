@@ -3,7 +3,7 @@ import { ButtonStyle, ComponentType, MessageFlags } from 'discord.js'
 import fs from 'fs'
 import nodeHtmlToImage from 'node-html-to-image'
 import path from 'path'
-import { createCommandConfig } from 'robo.js'
+import { createCommandConfig, logger } from 'robo.js'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 import { RODS } from '../../configs/rods'
@@ -26,6 +26,8 @@ export default async (interaction: ChatInputCommandInteraction) => {
     // The require function has already replied to the interaction
     return
   }
+
+  logger.info(`[command][/store_rod][${interaction.user.id}][${interaction.user.username}]`)
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral })
 
