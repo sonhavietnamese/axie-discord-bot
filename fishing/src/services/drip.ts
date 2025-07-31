@@ -78,10 +78,10 @@ export async function updateCandyBalance(dripUserId: string, amount: number): Pr
       return { success: false, error: `Balance update failed: ${dripResponse.status}` }
     }
 
-    logger.info(`Successfully updated Drip balance for user ${dripUserId} with ${amount} candies`)
+    logger.info(`[drip][update-balance][ok][drip-id-${dripUserId}][amount-${amount}]`)
     return { success: true }
   } catch (error) {
-    logger.error('Error updating Drip balance:', error)
+    logger.error(`[drip][update-balance][error][drip-id-${dripUserId}][amount-${amount}][error-${error}]`)
     return { success: false, error: 'Network or API error' }
   }
 }
@@ -104,7 +104,7 @@ export async function processPayment(discordId: string, amount: number): Promise
     return { success: false, error: balanceResult.error || 'Balance update failed' }
   }
 
-  logger.info(`Payment processed: ${amount} candies for Discord user ${discordId}`)
+  logger.info(`[drip][process-payment][ok][discord-id-${discordId}][amount-${amount}]`)
   return { success: true }
 }
 
@@ -123,14 +123,14 @@ export async function getCandyBalance(discordId: string): Promise<number> {
     const dripUser = (await dripUserResponse.json()) as DripUserResponse
     const user = dripUser.data[0]
     if (!user) {
-      logger.warn(`User ${discordId} not found in Drip`)
+      logger.warn(`[drip][get-balance][error][discord-id-${discordId}][error-user-not-found]`)
       return 0
     }
 
     const candyBalance = user.balances.find((balance) => balance.currencyId === CURRENCY_ID)?.balance
     return candyBalance || 0
   } catch (dripError) {
-    logger.error('Error getting Drip balance:', dripError)
+    logger.error(`[drip][get-balance][error][discord-id-${discordId}][error-${dripError}]`)
     // Don't fail the main operation if Drip API fails
   }
   return 0

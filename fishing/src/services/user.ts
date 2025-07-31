@@ -277,13 +277,17 @@ export async function handleUserCatch(userId: string, rates: number[], stuffId: 
 
 // Sell all items in user's inventory and record exchange
 export async function sellAllItems(userId: string): Promise<{ success: boolean; candiesEarned: number; itemsSold: Inventory; error?: string }> {
+  console.log(`💰 sellAllItems called for user ${userId}`)
+
   const user = await getUser(userId)
 
   if (!user) {
+    console.log(`❌ User ${userId} not found`)
     return { success: false, candiesEarned: 0, itemsSold: { fishes: {}, rods: {} }, error: 'User not found' }
   }
 
   const currentInventory = parseInventory(user.inventory)
+  console.log(`💰 Current inventory for user ${userId}:`, currentInventory)
 
   // Check if user has any items to sell (only fish)
   const sellableItems = Object.entries(currentInventory.fishes)
@@ -291,6 +295,7 @@ export async function sellAllItems(userId: string): Promise<{ success: boolean; 
     .filter(([itemId]) => itemId >= '001' && itemId <= '006') // Only sell fish
 
   if (sellableItems.length === 0) {
+    console.log(`❌ No sellable items for user ${userId}`)
     return { success: false, candiesEarned: 0, itemsSold: { fishes: {}, rods: {} }, error: 'No items to sell' }
   }
 
@@ -305,70 +310,79 @@ export async function sellAllItems(userId: string): Promise<{ success: boolean; 
     itemsSold.fishes[itemId] = quantity
   }
 
+  console.log(`💰 Items to sell for user ${userId}:`, itemsSold)
+  console.log(`💰 Total candies to earn: ${totalCandies}`)
+
   // Generate unique exchange ID
   const exchangeId = `exchange_${userId}_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
 
-  return db.transaction((tx) => {
-    try {
-      // 1. Create exchange record first (for logging and double-spend prevention)
-      tx.insert(exchanges).values({
-        id: exchangeId,
-        userId,
-        itemsSold: JSON.stringify(itemsSold),
-        candiesEarned: totalCandies,
-        status: 'pending',
-      })
+  try {
+    // 1. Create exchange record first (for logging and double-spend prevention)
+    console.log(`💰 Creating exchange record ${exchangeId}`)
+    await db.insert(exchanges).values({
+      id: exchangeId,
+      userId,
+      itemsSold: JSON.stringify(itemsSold),
+      candiesEarned: totalCandies,
+      status: 'pending',
+    })
 
-      // 2. Clear user's fish inventory (set all quantities to 0)
-      const updatedInventory: Inventory = {
-        fishes: {},
-        rods: currentInventory.rods, // Keep rods intact
-      }
+    // 2. Clear user's fish inventory (set all quantities to 0)
+    const updatedInventory: Inventory = {
+      fishes: {},
+      rods: currentInventory.rods, // Keep rods intact
+    }
 
-      // Reset only the sold fish items to 0
-      for (const itemId of Object.keys(currentInventory.fishes)) {
-        if (itemId >= '001' && itemId <= '006') {
-          updatedInventory.fishes[itemId] = 0
-        } else {
-          updatedInventory.fishes[itemId] = currentInventory.fishes[itemId] // Keep non-sellable items
-        }
-      }
-
-      tx.update(users)
-        .set({
-          inventory: JSON.stringify(updatedInventory),
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(users.id, userId))
-
-      // 3. Mark exchange as completed
-      tx.update(exchanges).set({ status: 'completed' }).where(eq(exchanges.id, exchangeId))
-
-      console.log(`💰 Exchange completed for user ${userId}: ${totalCandies} candies earned from selling items:`, itemsSold)
-
-      return {
-        success: true,
-        candiesEarned: totalCandies,
-        itemsSold,
-      }
-    } catch (error) {
-      console.error('❌ Error during exchange transaction:', error)
-
-      // Mark exchange as failed if it exists
-      try {
-        tx.update(exchanges).set({ status: 'failed' }).where(eq(exchanges.id, exchangeId))
-      } catch (updateError) {
-        console.error('Failed to update exchange status to failed:', updateError)
-      }
-
-      return {
-        success: false,
-        candiesEarned: 0,
-        itemsSold: { fishes: {}, rods: {} },
-        error: 'Transaction failed',
+    // Reset only the sold fish items to 0
+    for (const itemId of Object.keys(currentInventory.fishes)) {
+      if (itemId >= '001' && itemId <= '006') {
+        updatedInventory.fishes[itemId] = 0
+      } else {
+        updatedInventory.fishes[itemId] = currentInventory.fishes[itemId] // Keep non-sellable items
       }
     }
-  })
+
+    console.log(`💰 Updated inventory for user ${userId}:`, updatedInventory)
+
+    // Update user inventory directly
+    await db
+      .update(users)
+      .set({
+        inventory: JSON.stringify(updatedInventory),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(users.id, userId))
+
+    console.log(`💰 Inventory updated for user ${userId}`)
+
+    // 3. Mark exchange as completed
+    await db.update(exchanges).set({ status: 'completed' }).where(eq(exchanges.id, exchangeId))
+
+    console.log(`💰 Exchange completed for user ${userId}: ${totalCandies} candies earned from selling items:`, itemsSold)
+
+    return {
+      success: true,
+      candiesEarned: totalCandies,
+      itemsSold,
+    }
+  } catch (error) {
+    console.error(`❌ Error during exchange for user ${userId}:`, error)
+
+    // Mark exchange as failed if it exists
+    try {
+      await db.update(exchanges).set({ status: 'failed' }).where(eq(exchanges.id, exchangeId))
+      console.log(`💰 Marked exchange ${exchangeId} as failed`)
+    } catch (updateError) {
+      console.error('Failed to update exchange status to failed:', updateError)
+    }
+
+    return {
+      success: false,
+      candiesEarned: 0,
+      itemsSold: { fishes: {}, rods: {} },
+      error: 'Transaction failed',
+    }
+  }
 }
 
 // Get user's exchange history

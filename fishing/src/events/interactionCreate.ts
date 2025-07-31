@@ -14,8 +14,17 @@ import {
   getTotalRodCount,
 } from '../libs/utils'
 import { getCandyBalance, processPayment } from '../services/drip'
-import { getCurrentRodStoreIntern, getRodStoreStock, getRodStoreStockByRodId, reduceRodStore, restockRodStore } from '../services/rod-store'
+import {
+  addRodPurchaseHistory,
+  getCurrentRodStoreInterns,
+  getRodStoreStock,
+  getRodStoreStockByRodId,
+  reduceRodStore,
+  restockRodStore,
+} from '../services/rod-store'
 import { getOrCreateUser, getUserInventory, handleUserCatch, sellAllItems, updateUserInventory } from '../services/user'
+import { trackEvent } from '../libs/tracking'
+import { addRockStoreHistory } from '../services/rock-store'
 
 // Fishing session management
 interface FishingSession {
@@ -91,7 +100,7 @@ export default async (interaction: Interaction) => {
         components: [], // Remove all buttons immediately
       })
     } catch (updateError) {
-      logger.error('Error immediately disabling buttons:', updateError)
+      logger.error(`[fishing][error][user-${interaction.user.id}][error-${updateError}]`)
       return
     }
 
@@ -129,6 +138,17 @@ export default async (interaction: Interaction) => {
 
             // Do database operations
             await handleUserCatch(interaction.user.id, caughtStuff.newRates, caughtStuff.id, session.guildId, session.channelId)
+            trackEvent({
+              id: interaction.user.id,
+              event: 'fish_caught',
+              action: `fish_${stuff.rank.id}`,
+              action_properties: {
+                guildId: session.guildId,
+                channelId: session.channelId,
+                stuffId: caughtStuff.id,
+                stuffName: stuff.name,
+              },
+            })
 
             // Prepare the message content
             const isTrash = stuff.rank.name.toUpperCase() === 'USELESS'
@@ -188,7 +208,7 @@ export default async (interaction: Interaction) => {
             }
           }
         } catch (error) {
-          logger.error('Error handling fish catch:', error)
+          logger.error(`[fishing][error][user-${interaction.user.id}][error-${error}]`)
           const thing = getStuff(caughtStuff?.id || '000')
           const rodUsesLeft = Math.max(0, session.assignedRod.uses - 1) // Rod uses were reduced by 1
           const rodStatusMessage =
@@ -211,14 +231,16 @@ export default async (interaction: Interaction) => {
         try {
           await session.originalInteraction.editReply(updateData)
         } catch (updateError) {
-          logger.error('Error updating fishing completion:', updateError)
+          logger.error(`[fishing][error][user-${interaction.user.id}][error-update-data]`)
+          console.log(updateError)
           try {
             await session.originalInteraction.followUp({
               ...updateData,
               ephemeral: true,
             })
           } catch (followUpError) {
-            logger.error('Error with follow-up for fishing completion:', followUpError)
+            logger.error(`[fishing][error][user-${interaction.user.id}][error-follow-up]`)
+            console.log(followUpError)
           }
         }
 
@@ -230,7 +252,8 @@ export default async (interaction: Interaction) => {
               files: publicMessageData.files,
             })
           } catch (error) {
-            logger.error('Error sending public message:', error)
+            logger.error(`[fishing][error][user-${interaction.user.id}][error-send-public-message]`)
+            console.log(error)
           }
         }
       } else {
@@ -254,7 +277,8 @@ export default async (interaction: Interaction) => {
         try {
           await session.originalInteraction.editReply(nextUpdateData)
         } catch (updateError) {
-          logger.error('Error updating fishing for next number:', updateError)
+          logger.error(`[fishing][error][user-${interaction.user.id}][error-update-next-number]`)
+          console.log(updateError)
           fishingSessions.delete(sessionKey)
         }
       }
@@ -304,7 +328,8 @@ export default async (interaction: Interaction) => {
       const paymentResult = await processPayment(interaction.user.id, result.candiesEarned)
 
       if (!paymentResult.success) {
-        logger.warn(`Failed to process payment for user ${interaction.user.id}: ${paymentResult.error}`)
+        logger.warn(`[drip][process-payment][error][user-${interaction.user.id}][error-payment-failed]`)
+        console.log(paymentResult)
         // Don't fail the main operation if Drip API fails, but log the issue
       }
 
@@ -358,9 +383,10 @@ export default async (interaction: Interaction) => {
         ],
       })
 
-      logger.info(`User ${interaction.user.username} (${interaction.user.id}) sold all items for ${result.candiesEarned} candies`)
+      logger.info(`[sell-all][ok][user-${interaction.user.id}][candies-${result.candiesEarned}]`)
     } catch (error) {
-      logger.error('Error handling sell-all button:', error)
+      logger.error(`[sell-all][error][user-${interaction.user.id}][error-sell-all]`)
+      console.log(error)
 
       if (interaction.deferred) {
         await interaction.editReply({
@@ -379,49 +405,48 @@ export default async (interaction: Interaction) => {
   if (interaction.customId.startsWith('buy-rod-')) {
     const rodType = interaction.customId.split('-')[2] // 'branch', 'mavis', or 'bald'
 
+    let selectedRod
+    switch (rodType) {
+      case 'branch':
+        selectedRod = RODS[0] // Branch rod
+        break
+      case 'mavis':
+        selectedRod = RODS[1] // Mavis rod
+        break
+      case 'bald':
+        selectedRod = RODS[2] // BALD rod
+        break
+      default:
+        await interaction.editReply({
+          content: '❌ **Invalid rod type selected.**',
+        })
+        return
+    }
+
     try {
       await interaction.deferReply({ ephemeral: true })
 
       // Find the rod configuration
-      let selectedRod
-      switch (rodType) {
-        case 'branch':
-          selectedRod = RODS[0] // Branch rod
-          break
-        case 'mavis':
-          selectedRod = RODS[1] // Mavis rod
-          break
-        case 'bald':
-          selectedRod = RODS[2] // BALD rod
-          break
-        default:
-          await interaction.editReply({
-            content: '❌ **Invalid rod type selected.**',
-          })
-          return
-      }
 
       // Check if rod is in stock
       const rodStock = await getRodStoreStockByRodId(selectedRod.id)
-      const intern = await getCurrentRodStoreIntern()
+      const interns = await getCurrentRodStoreInterns()
 
-      if (!intern) {
+      if (!interns.length) {
         await interaction.editReply({
           content: `❌ Rod Store Intern not found!`,
         })
         return
       }
 
-      if (!rodStock || rodStock.stock === 0 || intern.isHiring === 0) {
+      if (!rodStock || rodStock.stock === 0 || interns[0].isHiring === 0) {
         await interaction.editReply({
-          content: `❌ **${selectedRod.name} Rod is out of stock!** Ask Rod Store Intern <@${intern.userId || 'unknown'}> to restock!`,
+          content: `❌ **${selectedRod.name} Rod is out of stock!** Ask Rod Store Intern <@${interns[0].userId || 'unknown'}> to restock!`,
         })
         return
       }
 
-      console.log(
-        `🎣 User ${interaction.user.username} (${interaction.user.id}) attempting to buy ${selectedRod.name} rod for ${selectedRod.price} candies`,
-      )
+      logger.info(`[rod-store][buy-rod][ok][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}]`)
 
       // Create or get user first to check rod inventory
       const userData = await getOrCreateUser(interaction.user.id, interaction.user.username || interaction.user.globalName || 'Unknown User')
@@ -437,9 +462,11 @@ export default async (interaction: Interaction) => {
 
       if (totalRods >= 1) {
         await interaction.editReply({
-          content: `❌ **Rod limit reached!** You can only own 1 rod at a time. You currently have ${totalRods} rod(s).\n\n_Please use your current rod or wait for a rod trading feature._`,
+          content: `❌ **Rod limit reached!** You can only own 1 rod at a time. You currently have ${totalRods} rod(s).\nUse \`/inventory\` to see your rod.\n\n_Please use your current rod or wait for a rod trading feature._`,
         })
-        console.log(`❌ Purchase blocked: User ${interaction.user.id} already has ${totalRods} rod(s)`)
+        logger.error(
+          `[rod-store][buy-rod][error][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][error-rod-limit-reached]`,
+        )
         return
       }
 
@@ -450,7 +477,9 @@ export default async (interaction: Interaction) => {
         await interaction.editReply({
           content: `❌ **Insufficient candies!** You need ${selectedRod.price} 🍬 candies but only have ${currentBalance} 🍬.`,
         })
-        console.log(`❌ Purchase failed: User ${interaction.user.id} has insufficient balance (${currentBalance}/${selectedRod.price})`)
+        logger.error(
+          `[rod-store][buy-rod][error][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][error-insufficient-balance][balance-${currentBalance}]`,
+        )
         return
       }
 
@@ -461,11 +490,13 @@ export default async (interaction: Interaction) => {
         await interaction.editReply({
           content: `❌ **Payment processing failed:** ${paymentResult.error || 'Unknown error'}. Please try again later.`,
         })
-        console.log(`❌ Payment failed: ${paymentResult.error}`)
+        logger.error(
+          `[rod-store][buy-rod][error][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][error-payment-failed][error-${paymentResult.error}]`,
+        )
         return
       }
 
-      console.log(`✅ Payment success: Deducted ${selectedRod.price} candies from user ${interaction.user.id}`)
+      logger.info(`[rod-store][buy-rod][ok][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}]`)
 
       // Add rod to user's inventory (user and inventory already verified above)
       try {
@@ -476,8 +507,10 @@ export default async (interaction: Interaction) => {
         await updateUserInventory(interaction.user.id, updatedInventory)
         await reduceRodStore(selectedRod.id, 1)
 
-        console.log(`🎣 Rod purchase successful: User ${interaction.user.id} bought ${selectedRod.name} rod`)
-        console.log(`📦 Inventory updated: Added 1x ${selectedRod.name} rod (ID: ${selectedRod.id})`)
+        await addRodPurchaseHistory(interaction.user.id, selectedRod.id)
+        logger.info(
+          `[rod-store][buy-rod][ok][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][inventory-updated][inventory-${updatedInventory}]`,
+        )
 
         // Send success message
         await interaction.editReply({
@@ -533,18 +566,22 @@ export default async (interaction: Interaction) => {
         })
 
         logger.info(
-          `User ${interaction.user.username} (${interaction.user.id}) successfully purchased ${selectedRod.name} rod for ${selectedRod.price} candies`,
+          `[rod-store][buy-rod][ok][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][inventory-updated][inventory-${updatedInventory}]`,
         )
       } catch (inventoryError) {
         logger.error('Error updating user inventory after rod purchase:', inventoryError)
-        console.log(`❌ Inventory update failed: ${inventoryError}`)
+        logger.error(
+          `[rod-store][buy-rod][error][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][error-inventory-update-failed][error-${inventoryError}]`,
+        )
 
         // If inventory update fails but payment succeeded, we should refund and inform user
         const refundResult = await processPayment(interaction.user.id, selectedRod.price) // Positive amount to refund
         if (refundResult.success) {
-          console.log(`💰 Refunded ${selectedRod.price} candies to user ${interaction.user.id} due to inventory error`)
+          logger.info(`[rod-store][buy-rod][ok][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][inventory-updated]`)
         } else {
-          logger.error(`Failed to refund user ${interaction.user.id}: ${refundResult.error}`)
+          logger.error(
+            `[rod-store][buy-rod][error][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][error-refund-failed][error-${refundResult.error}]`,
+          )
         }
 
         await interaction.editReply({
@@ -552,8 +589,7 @@ export default async (interaction: Interaction) => {
         })
       }
     } catch (error) {
-      logger.error('Error handling rod purchase:', error)
-      console.log(`❌ Rod purchase error: ${error}`)
+      logger.error(`[rod-store][buy-rod][error][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][error-${error}]`)
 
       if (interaction.deferred) {
         await interaction.editReply({
@@ -572,10 +608,12 @@ export default async (interaction: Interaction) => {
 
   // Handle restock all rods button
   if (interaction.customId === 'restock-rods') {
-    await interaction.deferReply({ ephemeral: true }) // <-- Add this line
+    await interaction.deferReply({ ephemeral: true })
 
-    const intern = await getCurrentRodStoreIntern()
-    if (!intern) {
+    logger.info(`[rod-store][restock-rods][request][user-${interaction.user.id}]`)
+
+    const intern = await getCurrentRodStoreInterns()
+    if (!intern.length) {
       await interaction.editReply({
         content: `❌ Rod Store Intern not found!`,
       })
@@ -587,10 +625,16 @@ export default async (interaction: Interaction) => {
       content: `🔄 Refilling all rods...`,
     })
 
-    const rodStore = await getRodStoreStock()
-    const rodStoreToRestock = rodStore.map((r) => ({ id: r.id, rodId: r.rodId, stock: 5 }))
-    console.log(rodStoreToRestock)
+    // Create restock data using the actual database IDs
+    const rodStoreToRestock = RODS.map((item) => ({
+      id: item.id,
+      rodId: item.id,
+      stock: 5,
+    }))
+
     await restockRodStore(rodStoreToRestock)
+
+    logger.info(`[rod-store][restock-rods][ok][user-${interaction.user.id}]`)
 
     await interaction.editReply({
       content: `✅ Refilled all rods!`,
@@ -633,11 +677,10 @@ export default async (interaction: Interaction) => {
     // TODO: reduce the candy balance
     await processPayment(interaction.user.id, -2)
 
-    console.log(reward)
-
     if (reward.type === 'candy') {
       try {
         const response = await processPayment(interaction.user.id, reward.amount)
+        await addRockStoreHistory(interaction.user.id, 'candy', reward.amount)
         if (!response.success) {
           throw new Error('Failed to send candies')
         }
@@ -662,6 +705,7 @@ export default async (interaction: Interaction) => {
     if (reward.type === 'rock') {
       try {
         await updateUserInventory(interaction.user.id, addToInventory(inventory, '000', reward.amount, 'fish'))
+        await addRockStoreHistory(interaction.user.id, 'rock', reward.amount)
       } catch (error) {
         return interaction.editReply({
           content: 'Failed to update inventory',
@@ -682,6 +726,7 @@ export default async (interaction: Interaction) => {
     if (reward.type === 'fish') {
       try {
         await updateUserInventory(interaction.user.id, addToInventory(inventory, reward.id, reward.amount, 'fish'))
+        await addRockStoreHistory(interaction.user.id, `fish-${reward.id}`, reward.amount)
       } catch (error) {
         return interaction.editReply({
           content: 'Failed to update inventory',

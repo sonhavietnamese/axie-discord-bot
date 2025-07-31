@@ -10,7 +10,7 @@ import { RODS } from '../../configs/rods'
 import { font, storeBackgroundBase64 } from '../../core/preload'
 import { type RodStoreIntern } from '../../schema'
 import { getCandyBalance } from '../../services/drip'
-import { getCurrentRodStoreIntern, getRodStoreStock } from '../../services/rod-store'
+import { getCurrentRodStoreInterns, getRodStoreStock } from '../../services/rod-store'
 import { trackEvent, trackIdentity } from '../../libs/tracking'
 import { isWhitelisted, require } from '../../libs/utils'
 
@@ -45,21 +45,21 @@ export default async (interaction: ChatInputCommandInteraction) => {
     },
   })
 
-  const intern = await getCurrentRodStoreIntern()
+  const interns = await getCurrentRodStoreInterns()
 
-  if (!intern) {
+  if (!interns.length) {
     return interaction.editReply({
       content: 'No store intern found',
     })
   }
 
-  const isRodStoreInternInteracting = interaction.user.id === intern.userId
+  const isRodStoreInternInteracting = interns.some((i) => i.userId === interaction.user.id)
 
   const rodStore = await getRodStoreStock()
 
   const isEmpty = rodStore.every((r) => r.stock === 0)
 
-  const thumbnail = await generateRodStoreImage(intern)
+  const thumbnail = await generateRodStoreImage(interns[0])
   const candyBalance = await getCandyBalance(interaction.user.id)
 
   const buttonGroup = [
@@ -106,7 +106,8 @@ export default async (interaction: ChatInputCommandInteraction) => {
         color: 0xfff7d9,
         title: `Rod Store`,
         description:
-          `Welcome to the Rod Store!` + (isEmpty ? `\n\n**Rods are out of stock**\nAsk Rod Store Intern <@${intern.userId}> to restock!` : ''),
+          `Welcome to the Rod Store!` +
+          (isEmpty ? `\n\n**Rods are out of stock**\nAsk Rod Store Intern ${interns.map((i) => `<@${i.userId}>`).join(', ')} to restock!` : ''),
         fields: rodStore.map((rod) => ({
           name: RODS.find((r) => r.id === rod.rodId)?.name || 'Unknown Rod',
           value: `Stock: ${rod.stock}`,
@@ -121,7 +122,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
     ],
     files: [
       {
-        name: `store-rod-${intern.userId}.png`,
+        name: `store-rod-${interns[0].userId}.png`,
         contentType: 'image/png',
         attachment: thumbnail,
       },

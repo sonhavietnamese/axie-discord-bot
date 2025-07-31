@@ -8,10 +8,10 @@ export interface Reward {
 
 export const CANDY_MACHINE_REWARDS: Record<RewardType, { rate: number; sub: Record<string, Reward> }> = {
   candy: {
-    rate: 50,
+    rate: 40,
     sub: {
       common: {
-        maxAmount: 4,
+        maxAmount: 3,
         rate: 74,
         id: '001',
       },
@@ -21,19 +21,19 @@ export const CANDY_MACHINE_REWARDS: Record<RewardType, { rate: number; sub: Reco
         id: '003',
       },
       epic: {
-        maxAmount: 20,
+        maxAmount: 10,
         rate: 5,
         id: '005',
       },
       legendary: {
-        maxAmount: 50,
+        maxAmount: 15,
         rate: 1,
         id: '006',
       },
     },
   },
   rock: {
-    rate: 30,
+    rate: 40,
     sub: {
       common: {
         maxAmount: 4,

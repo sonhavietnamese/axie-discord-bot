@@ -106,6 +106,31 @@ export const rodStore = sqliteTable('rod_store', {
   stock: integer('stock').notNull().default(0),
 })
 
+export const rodPurchaseHistory = sqliteTable('rod_purchase_history', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  rodId: text('rod_id')
+    .notNull()
+    .references(() => rods.id, { onDelete: 'cascade' }),
+  createdAt: text('created_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+})
+
+export const rockStoreHistory = sqliteTable('rock_store_history', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(),
+  amount: integer('amount').notNull(),
+  createdAt: text('created_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+})
+
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 
@@ -117,6 +142,12 @@ export type NewFishingHistory = typeof fishingHistory.$inferInsert
 
 export type Exchange = typeof exchanges.$inferSelect
 export type NewExchange = typeof exchanges.$inferInsert
+
+export type RodPurchaseHistory = typeof rodPurchaseHistory.$inferSelect
+export type NewRodPurchaseHistory = typeof rodPurchaseHistory.$inferInsert
+
+export type RockStoreHistory = typeof rockStoreHistory.$inferSelect
+export type NewRockStoreHistory = typeof rockStoreHistory.$inferInsert
 
 // Type for inventory JSON structure - new nested format
 export type Inventory = {
