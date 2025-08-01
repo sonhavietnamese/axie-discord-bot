@@ -92,11 +92,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
       {
         color: 0xc63b3b,
         title: `Gm bro, welcome to ET's Seafood Store!`,
-        description: `${
-          process.env.STORE_STATUS === 'open'
-            ? 'Store is open, you can sell your fish here to get candies 🍬!'
-            : 'Store is closed, you can not sell your fish here to get candies 🍬!'
-        }`,
+        description: `Store is open, you can sell your fish here to get candies 🍬!`,
       },
       {
         title: 'Your Fish Inventory',

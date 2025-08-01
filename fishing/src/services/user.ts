@@ -170,16 +170,12 @@ export async function getUserRate(userId: string) {
 }
 
 export async function handleUserCatch(userId: string, rates: number[], stuffId: string | null, guildId: string | null, channelId: string) {
-  console.log(`🎣 handleUserCatch called for user ${userId}, stuffId: ${stuffId}`)
-
   const user = await getUser(userId)
 
   if (!user) {
     console.log(`❌ User ${userId} not found`)
     return null
   }
-
-  console.log(`🎣 Processing catch for user ${userId}`)
 
   // 1. Get current inventory and reduce rod uses
   const currentInventory = parseInventory(user.inventory)
@@ -193,8 +189,6 @@ export async function handleUserCatch(userId: string, rates: number[], stuffId: 
     // Use the first usable rod (reduce uses by 1)
     usedRodId = usableRods[0].rodId
     updatedInventory = useRod(currentInventory, usedRodId, 1)
-
-    console.log(`🎣 Rod used: ${usedRodId}, uses remaining: ${updatedInventory.rods[usedRodId]?.usesLeft || 0}`)
   }
 
   // 2. Add caught item to inventory (if successful catch) - preserve rod changes
@@ -214,16 +208,10 @@ export async function handleUserCatch(userId: string, rates: number[], stuffId: 
           [usedRodId]: rodStateBeforeFish,
         },
       }
-
-      console.log(`🎣 Rod usage explicitly preserved: ${usedRodId}, uses remaining: ${rodStateBeforeFish.usesLeft}`)
     }
   }
 
-  console.log('updatedInventory', updatedInventory)
-
   // 3. Update user rates and inventory directly (like updateUserInventory)
-  console.log(`🎣 Updating database for user ${userId}`)
-  console.log(`🎣 New inventory:`, JSON.stringify(updatedInventory, null, 2))
 
   try {
     await db
@@ -234,8 +222,6 @@ export async function handleUserCatch(userId: string, rates: number[], stuffId: 
         updatedAt: new Date().toISOString(),
       })
       .where(eq(users.id, userId))
-
-    console.log(`🎣 Database update completed for user ${userId}`)
   } catch (error) {
     console.error(`❌ Database update failed for user ${userId}:`, error)
     throw error
@@ -342,8 +328,6 @@ export async function sellAllItems(userId: string): Promise<{ success: boolean; 
       }
     }
 
-    console.log(`💰 Updated inventory for user ${userId}:`, updatedInventory)
-
     // Update user inventory directly
     await db
       .update(users)
@@ -352,8 +336,6 @@ export async function sellAllItems(userId: string): Promise<{ success: boolean; 
         updatedAt: new Date().toISOString(),
       })
       .where(eq(users.id, userId))
-
-    console.log(`💰 Inventory updated for user ${userId}`)
 
     // 3. Mark exchange as completed
     await db.update(exchanges).set({ status: 'completed' }).where(eq(exchanges.id, exchangeId))

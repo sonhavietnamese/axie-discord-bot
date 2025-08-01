@@ -112,7 +112,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
           (isEmpty ? `\n\n**Rods are out of stock**\nAsk Rod Store Intern ${interns.map((i) => `<@${i.userId}>`).join(', ')} to restock!` : ''),
         fields: rodStore.map((rod) => ({
           name: RODS.find((r) => r.id === rod.rodId)?.name || 'Unknown Rod',
-          value: `Stock: ${rod.stock}`,
+          value: `Stock: ${Math.max(rod.stock, 0)}`,
           inline: true,
         })),
       },

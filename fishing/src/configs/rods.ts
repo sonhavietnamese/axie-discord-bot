@@ -3,7 +3,7 @@ export const RODS = [
     id: '001',
     name: 'Branch',
     rate: 50,
-    multiplier: [40, 10, 10, 5, 4, 1, 0.5],
+    multiplier: [40, 10, 10, 5, 4, 1, 0.2],
     uses: 10,
     color: 0xff7a00,
     image: 'rod-001',

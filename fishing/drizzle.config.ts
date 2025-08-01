@@ -6,7 +6,7 @@ export default {
   dialect: 'sqlite',
   dbCredentials: {
     // url: './dev.db',
-    url: './dev-v002.db',
+    url: './database.db',
   },
   verbose: true,
   strict: true,

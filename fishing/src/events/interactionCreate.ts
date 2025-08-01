@@ -178,7 +178,7 @@ export default async (interaction: Interaction) => {
             }
 
             // Prepare public message for rare catches
-            if (interaction.channel && 'send' in interaction.channel && ['supreme', 'monster', 'nft'].includes(stuff.rank.id)) {
+            if (interaction.channel && 'send' in interaction.channel && ['monster', 'nft'].includes(stuff.rank.id)) {
               const prefix =
                 session.configuredRod.id === '001'
                   ? '# WTFish <a:ooooooooooooo:1385193747268112455> <a:ooooooooooooo:1385193747268112455> <a:ooooooooooooo:1385193747268112455> \n'
@@ -376,9 +376,9 @@ export default async (interaction: Interaction) => {
         ],
         files: [
           {
-            attachment: computeCDNUrl('store-001'),
-            name: 'store-001.webp',
-            contentType: 'image/webp',
+            attachment: computeCDNUrl('store-et'),
+            name: 'store-et.png',
+            contentType: 'image/png',
           },
         ],
       })
@@ -625,11 +625,20 @@ export default async (interaction: Interaction) => {
       content: `🔄 Refilling all rods...`,
     })
 
+    // Need to check if all the rods need to be back to 0 to be able to restock
+    const allRods = await getRodStoreStock()
+    if (allRods.some((rod) => rod.stock > 0)) {
+      await interaction.editReply({
+        content: `❌ All rods must be out of stock to restock!`,
+      })
+      return
+    }
+
     // Create restock data using the actual database IDs
     const rodStoreToRestock = RODS.map((item) => ({
       id: item.id,
       rodId: item.id,
-      stock: 5,
+      stock: 7,
     }))
 
     await restockRodStore(rodStoreToRestock)

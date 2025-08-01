@@ -7,7 +7,8 @@ import { TRASHES } from '../configs/trashes'
 import { fishes, nfts, rods, rodStore, trashes } from '../schema'
 
 // Create database connection using better-sqlite3
-const dbPath = './dev-v002.db'
+// const dbPath = './dev-v002.db'
+const dbPath = './database.db'
 const sqlite = new Database(dbPath)
 export const db = drizzle(sqlite)
 
