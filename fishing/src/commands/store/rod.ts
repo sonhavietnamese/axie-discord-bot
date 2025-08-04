@@ -71,7 +71,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
       label: `Buy Branch Rod`,
       emoji: RODS[0].emoji,
       customId: 'buy-rod-branch',
-      disabled: candyBalance <= RODS[0].price || rodStore.find((r) => r.rodId === RODS[0].id)?.stock === 0,
+      disabled: candyBalance <= RODS[0].price || (rodStore.find((r) => r.rodId === RODS[0].id)?.stock ?? 0) <= 0,
     },
     {
       type: ComponentType.Button,
@@ -79,7 +79,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
       label: `Buy Mavis Rod`,
       emoji: RODS[1].emoji,
       customId: 'buy-rod-mavis',
-      disabled: candyBalance <= RODS[1].price || rodStore.find((r) => r.rodId === RODS[1].id)?.stock === 0,
+      disabled: candyBalance <= RODS[1].price || (rodStore.find((r) => r.rodId === RODS[1].id)?.stock ?? 0) <= 0,
     },
     {
       type: ComponentType.Button,
@@ -87,7 +87,7 @@ export default async (interaction: ChatInputCommandInteraction) => {
       label: `Buy BALD Rod`,
       emoji: RODS[2].emoji,
       customId: 'buy-rod-bald',
-      disabled: candyBalance <= RODS[2].price || rodStore.find((r) => r.rodId === RODS[2].id)?.stock === 0,
+      disabled: candyBalance <= RODS[2].price || (rodStore.find((r) => r.rodId === RODS[2].id)?.stock ?? 0) <= 0,
     },
   ]
 
