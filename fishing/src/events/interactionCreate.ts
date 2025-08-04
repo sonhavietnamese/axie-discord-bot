@@ -1,6 +1,9 @@
 import type { Interaction } from 'discord.js'
 import { ComponentType } from 'discord.js'
 import { logger } from 'robo.js'
+import { eq, sql } from 'drizzle-orm'
+import { db } from '../libs/database'
+import { rodStore } from '../schema'
 import { NFTs } from '../configs/nfts'
 import { RODS } from '../configs/rods'
 import { specialPlayer } from '../libs/nft'
@@ -16,6 +19,7 @@ import {
 import { getCandyBalance, processPayment } from '../services/drip'
 import {
   addRodPurchaseHistory,
+  attemptRodPurchase,
   getCurrentRodStoreInterns,
   getRodStoreStock,
   getRodStoreStockByRodId,
@@ -483,15 +487,34 @@ export default async (interaction: Interaction) => {
         return
       }
 
-      // Process payment via Drip API (subtract candies)
+      // Attempt atomic rod purchase (this handles stock reduction atomically)
+      const purchaseAttempt = await attemptRodPurchase(selectedRod.id)
+
+      if (!purchaseAttempt.success) {
+        await interaction.editReply({
+          content: `❌ **${selectedRod.name} Rod is out of stock!** Someone else purchased the last one. Ask Rod Store Intern <@${
+            interns[0].userId || 'unknown'
+          }> to restock!`,
+        })
+        logger.info(`[rod-store][buy-rod][race-condition-prevented][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}]`)
+        return
+      }
+
+      // Stock successfully reserved, now process payment
       const paymentResult = await processPayment(interaction.user.id, -selectedRod.price) // Negative amount to subtract
 
       if (!paymentResult.success) {
+        // Payment failed, we need to refund the stock
+        await db
+          .update(rodStore)
+          .set({ stock: sql`stock + 1` })
+          .where(eq(rodStore.rodId, selectedRod.id))
+
         await interaction.editReply({
           content: `❌ **Payment processing failed:** ${paymentResult.error || 'Unknown error'}. Please try again later.`,
         })
         logger.error(
-          `[rod-store][buy-rod][error][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][error-payment-failed][error-${paymentResult.error}]`,
+          `[rod-store][buy-rod][error][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][error-payment-failed][error-${paymentResult.error}][stock-refunded]`,
         )
         return
       }
@@ -505,7 +528,7 @@ export default async (interaction: Interaction) => {
 
         // Update user inventory in database
         await updateUserInventory(interaction.user.id, updatedInventory)
-        await reduceRodStore(selectedRod.id, 1)
+        // Stock already reduced by attemptRodPurchase above
 
         await addRodPurchaseHistory(interaction.user.id, selectedRod.id)
         logger.info(
@@ -574,13 +597,22 @@ export default async (interaction: Interaction) => {
           `[rod-store][buy-rod][error][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][error-inventory-update-failed][error-${inventoryError}]`,
         )
 
-        // If inventory update fails but payment succeeded, we should refund and inform user
+        // If inventory update fails but payment succeeded, we should refund both payment and stock
         const refundResult = await processPayment(interaction.user.id, selectedRod.price) // Positive amount to refund
+
+        // Also refund the stock
+        await db
+          .update(rodStore)
+          .set({ stock: sql`stock + 1` })
+          .where(eq(rodStore.rodId, selectedRod.id))
+
         if (refundResult.success) {
-          logger.info(`[rod-store][buy-rod][ok][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][inventory-updated]`)
+          logger.info(
+            `[rod-store][buy-rod][refund-complete][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][payment-and-stock-refunded]`,
+          )
         } else {
           logger.error(
-            `[rod-store][buy-rod][error][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][error-refund-failed][error-${refundResult.error}]`,
+            `[rod-store][buy-rod][error][user-${interaction.user.id}][rod-${selectedRod.id}][price-${selectedRod.price}][error-payment-refund-failed][stock-refunded][error-${refundResult.error}]`,
           )
         }
 

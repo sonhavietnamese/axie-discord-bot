@@ -1,4 +1,4 @@
-import { desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, gt, sql } from 'drizzle-orm'
 import { db } from '../libs/database'
 import { rodPurchaseHistory, rodStore, rodStoreIntern } from '../schema'
 import { v4 as uuidv4 } from 'uuid'
@@ -71,9 +71,24 @@ export async function reduceRodStore(id: string, reduceBy: number) {
   const updated = await db
     .update(rodStore)
     .set({ stock: sql`stock - ${reduceBy}` })
-    .where(eq(rodStore.id, id))
+    .where(and(eq(rodStore.id, id), gte(rodStore.stock, reduceBy)))
     .returning()
   return updated
+}
+
+// New function specifically for rod purchases that handles the atomic decrement
+export async function attemptRodPurchase(rodId: string) {
+  const updated = await db
+    .update(rodStore)
+    .set({ stock: sql`stock - 1` })
+    .where(and(eq(rodStore.rodId, rodId), gt(rodStore.stock, 0)))
+    .returning()
+
+  return {
+    success: updated.length > 0,
+    updatedStock: updated[0]?.stock,
+    stockRecord: updated[0],
+  }
 }
 
 export async function getRodStoreStock() {
