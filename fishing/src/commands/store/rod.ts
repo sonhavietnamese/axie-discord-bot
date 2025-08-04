@@ -206,6 +206,19 @@ async function generateRodStoreImage(intern: RodStoreIntern): Promise<Buffer> {
     },
     quality: 100,
     type: 'png',
+    puppeteerArgs: {
+      executablePath: `/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome`,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu',
+      ],
+    },
   })
 
   const computedImage = await sharp(image as Buffer)
